@@ -70,6 +70,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -194,6 +195,8 @@ fun NotesScreen(
     onDeleteNotes: (ids: List<Long>) -> Unit = {},
     onUndoDelete: (ids: List<Long>) -> Unit = {},
     onSelectionModeChange: (Boolean) -> Unit = {},
+    /** The host draws the same dim layer over the bottom bar while the New menu is open. */
+    onFabOpenChange: (Boolean) -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -242,6 +245,9 @@ fun NotesScreen(
             if (result == SnackbarResult.ActionPerformed) onUndoDelete(ids)
         }
     }
+
+    LaunchedEffect(fabOpen) { onFabOpenChange(fabOpen) }
+    DisposableEffect(Unit) { onDispose { onFabOpenChange(false) } }
 
     BackHandler(enabled = selecting || fabOpen) {
         if (fabOpen) fabOpen = false else exitSelect()

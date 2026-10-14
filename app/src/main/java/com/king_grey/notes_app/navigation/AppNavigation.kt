@@ -9,7 +9,9 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -35,6 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.king_grey.notes_app.R
@@ -64,7 +68,6 @@ import com.king_grey.notes_app.ui.screens.settings.PrivacyPolicyScreen
 import com.king_grey.notes_app.ui.screens.settings.SettingsScreen
 import com.king_grey.notes_app.ui.screens.settings.SettingsSheet
 import com.king_grey.notes_app.ui.screens.settings.SettingsUiState
-import com.king_grey.notes_app.ui.screens.shared.Scaled
 import com.king_grey.notes_app.ui.screens.shared.screenType
 import com.king_grey.notes_app.ui.theme.FlowNotesPalette
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
@@ -106,6 +109,7 @@ fun AppNavigation() {
         )
     }
     var selectedFolder by remember { mutableStateOf<Long?>(null) }
+    var fabMenuOpen by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(NotesViewMode.List) }
     var editorState by remember { mutableStateOf(NoteEditorUiState(noteId = 0L, isNew = true)) }
     var searchQuery by remember { mutableStateOf("") }
@@ -116,7 +120,8 @@ fun AppNavigation() {
     val now = System.currentTimeMillis()
     val liveNotes = allNotes.filter { it.deletedAt == null }
     val trashedNotes = allNotes.filter { it.deletedAt != null }
-    val folders = foldersBase.map { f -> f.copy(noteCount = liveNotes.count { it.folderId == f.id }) }
+    val folders =
+        foldersBase.map { f -> f.copy(noteCount = liveNotes.count { it.folderId == f.id }) }
     val foldersUi = FoldersUiState(
         folders = folders,
         allNotesCount = liveNotes.size,
@@ -184,7 +189,7 @@ fun AppNavigation() {
             pinned = s.pinned,
             locked = s.locked,
             folderId = s.folderId,
-            editedAt = if (changed) stamp else existing!!.editedAt,
+            editedAt = if (changed) stamp else existing.editedAt,
         )
         if (existing == null) {
             if (!note.isBlank()) allNotes = allNotes + note
@@ -262,26 +267,33 @@ fun AppNavigation() {
         return Uri.fromFile(file).toString()
     }
 
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) appendBlock { NoteBlock.Image(it, uri.toString()) }
-    }
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
-            val mime = context.contentResolver.getType(uri)
-            if (mime != null && mime.startsWith("image/")) {
-                appendBlock { NoteBlock.Image(it, uri.toString()) }
-            } else {
-                appendBlock {
-                    NoteBlock.Link(it, displayName(uri) ?: "File", mime ?: "File", uri.toString())
+    val photoPicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) appendBlock { NoteBlock.Image(it, uri.toString()) }
+        }
+    val filePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+                val mime = context.contentResolver.getType(uri)
+                if (mime != null && mime.startsWith("image/")) {
+                    appendBlock { NoteBlock.Image(it, uri.toString()) }
+                } else {
+                    appendBlock {
+                        NoteBlock.Link(
+                            it,
+                            displayName(uri) ?: "File",
+                            mime ?: "File",
+                            uri.toString()
+                        )
+                    }
                 }
             }
         }
-    }
     val cameraCapture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicturePreview(),
     ) { bitmap ->
@@ -327,39 +339,54 @@ fun AppNavigation() {
                 containerColor = colors.background,
                 bottomBar = {
                     if (showBottomBar) {
-                        NavigationBar(
-                            containerColor = colors.background,
-                            tonalElevation = 0.dp,
-                        ) {
-                            topLevelDestinations.forEach { destination ->
-                                NavigationBarItem(
-                                    selected = currentDestination == destination.route,
-                                    onClick = {
-                                        if (currentDestination != destination.route) {
-                                            backStack.clear()
-                                            backStack.add(destination.route)
-                                        }
-                                    },
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(destination.iconRes),
-                                            contentDescription = destination.label,
-                                        )
-                                    },
-                                    label = {
-                                        Text(
-                                            destination.label,
-                                            style = screenType(12f, FontWeight.Medium, 16f, 0.5f),
-                                        )
-                                    },
-                                    alwaysShowLabel = true,
-                                    colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = colors.onPrimaryContainer,
-                                        selectedTextColor = colors.onSurface,
-                                        indicatorColor = colors.primaryContainer,
-                                        unselectedIconColor = colors.onSurfaceVariant,
-                                        unselectedTextColor = colors.onSurfaceVariant,
-                                    ),
+                        Box {
+                            NavigationBar(
+                                containerColor = colors.background,
+                                tonalElevation = 0.dp,
+                            ) {
+                                topLevelDestinations.forEach { destination ->
+                                    NavigationBarItem(
+                                        selected = currentDestination == destination.route,
+                                        onClick = {
+                                            if (currentDestination != destination.route) {
+                                                backStack.clear()
+                                                backStack.add(destination.route)
+                                            }
+                                        },
+                                        icon = {
+                                            Icon(
+                                                painter = painterResource(destination.iconRes),
+                                                contentDescription = destination.label,
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                destination.label,
+                                                style = screenType(
+                                                    12f,
+                                                    FontWeight.Medium,
+                                                    16f,
+                                                    0.5f
+                                                ),
+                                            )
+                                        },
+                                        alwaysShowLabel = true,
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = colors.onPrimaryContainer,
+                                            selectedTextColor = colors.onSurface,
+                                            indicatorColor = colors.primaryContainer,
+                                            unselectedIconColor = colors.onSurfaceVariant,
+                                            unselectedTextColor = colors.onSurfaceVariant,
+                                        ),
+                                    )
+                                }
+                            }
+                            if (fabMenuOpen && currentDestination == AppDestination.Notes) {
+                                // Same 40% dim as the notes screen, so it covers the bar too.
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .background(Color.Black.copy(alpha = 0.4f)),
                                 )
                             }
                         }
@@ -372,42 +399,43 @@ fun AppNavigation() {
                     entryProvider = { key ->
                         when (key) {
                             AppDestination.Notes -> NavEntry(key) {
-                                Scaled {
-                                    NotesScreen(
-                                        state = notesUi,
-                                        onOpenNote = { note -> openNote(note.id) },
-                                        onNewNote = { startNewNote() },
-                                        onNewChecklist = { startNewNote(forceChecklist = true) },
-                                        onNewFolder = { name -> addFolder(name) },
-                                        onOpenSearch = {
-                                            searchQuery = ""
-                                            searchFolderId = null
-                                            backStack.add(AppDestination.Search)
-                                        },
-                                        onFolderFilter = { selectedFolder = it },
-                                        onViewModeChange = { viewMode = it },
-                                        onSortSave = { sort, order ->
-                                            settingsState = settingsState.copy(sort = sort, sortOrder = order)
-                                        },
-                                        onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
-                                        onTogglePin = { ids, pin ->
-                                            updateNotes(ids) { it.copy(pinned = pin) }
-                                        },
-                                        onMoveNotes = { ids, folderId ->
-                                            updateNotes(ids) { it.copy(folderId = folderId) }
-                                        },
-                                        onCreateFolderAndMove = { ids, name ->
-                                            val id = addFolder(name)
-                                            updateNotes(ids) { it.copy(folderId = id) }
-                                        },
-                                        onShareNotes = { ids ->
-                                            share(shareTextOf(allNotes.filter { it.id in ids }))
-                                        },
-                                        onDeleteNotes = { ids -> trash(ids) },
-                                        onUndoDelete = { ids -> restore(ids) },
-                                        onSelectionModeChange = { _ -> },
-                                    )
-                                }
+                                NotesScreen(
+                                    state = notesUi,
+                                    onOpenNote = { note -> openNote(note.id) },
+                                    onNewNote = { startNewNote() },
+                                    onNewChecklist = { startNewNote(forceChecklist = true) },
+                                    onNewFolder = { name -> addFolder(name) },
+                                    onOpenSearch = {
+                                        searchQuery = ""
+                                        searchFolderId = null
+                                        backStack.add(AppDestination.Search)
+                                    },
+                                    onFolderFilter = { selectedFolder = it },
+                                    onViewModeChange = { viewMode = it },
+                                    onSortSave = { sort, order ->
+                                        settingsState =
+                                            settingsState.copy(sort = sort, sortOrder = order)
+                                    },
+                                    onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
+                                    onTogglePin = { ids, pin ->
+                                        updateNotes(ids) { it.copy(pinned = pin) }
+                                    },
+                                    onMoveNotes = { ids, folderId ->
+                                        updateNotes(ids) { it.copy(folderId = folderId) }
+                                    },
+                                    onCreateFolderAndMove = { ids, name ->
+                                        val id = addFolder(name)
+                                        updateNotes(ids) { it.copy(folderId = id) }
+                                    },
+                                    onShareNotes = { ids ->
+                                        share(shareTextOf(allNotes.filter { it.id in ids }))
+                                    },
+                                    onDeleteNotes = { ids -> trash(ids) },
+                                    onUndoDelete = { ids -> restore(ids) },
+                                    onSelectionModeChange = { _ -> },
+                                    onFabOpenChange = { fabMenuOpen = it },
+                                )
+
                             }
 
                             AppDestination.Search -> NavEntry(key) {
@@ -418,110 +446,118 @@ fun AppNavigation() {
                                     liveNotes
                                         .filter { note ->
                                             (searchFolderId == null || note.folderId == searchFolderId) &&
-                                                noteToPlainText(note.title, note.blocks)
-                                                    .contains(query, ignoreCase = true)
+                                                    noteToPlainText(note.title, note.blocks)
+                                                        .contains(query, ignoreCase = true)
                                         }
                                         .sortedByDescending { it.editedAt }
                                         .map { it.toNoteItem(folders, now) }
                                 }
-                                Scaled {
-                                    SearchScreen(
-                                        state = SearchUiState(
-                                            folders = folders,
-                                            selectedFolderId = searchFolderId,
-                                            recent = recentSearches,
-                                            results = results,
-                                        ),
-                                        initialQuery = searchQuery,
-                                        onBack = { popBack() },
-                                        onQueryChange = { searchQuery = it },
-                                        onFolderFilter = { searchFolderId = it },
-                                        onSubmit = { submitted ->
-                                            val term = submitted.trim()
-                                            if (term.isNotEmpty()) {
-                                                recentSearches = (listOf(term) +
-                                                    recentSearches.filterNot { it.equals(term, true) }).take(8)
-                                            }
-                                        },
-                                        onOpenNote = { note -> openNote(note.id) },
-                                        onClearRecent = { recentSearches = emptyList() },
-                                    )
-                                }
+                                SearchScreen(
+                                    state = SearchUiState(
+                                        folders = folders,
+                                        selectedFolderId = searchFolderId,
+                                        recent = recentSearches,
+                                        results = results,
+                                    ),
+                                    initialQuery = searchQuery,
+                                    onBack = { popBack() },
+                                    onQueryChange = { searchQuery = it },
+                                    onFolderFilter = { searchFolderId = it },
+                                    onSubmit = { submitted ->
+                                        val term = submitted.trim()
+                                        if (term.isNotEmpty()) {
+                                            recentSearches = (listOf(term) +
+                                                    recentSearches.filterNot {
+                                                        it.equals(
+                                                            term,
+                                                            true
+                                                        )
+                                                    }).take(8)
+                                        }
+                                    },
+                                    onOpenNote = { note -> openNote(note.id) },
+                                    onClearRecent = { recentSearches = emptyList() },
+                                )
+
                             }
 
                             is AppDestination.NoteEditor -> NavEntry(key) {
-                                Scaled {
-                                    NoteEditorScreen(
-                                        state = editorState.copy(folders = folders),
-                                        onBack = { popBack() },
-                                        onTitleChange = { commitEditor(editorState.copy(title = it)) },
-                                        onBlocksChange = { commitEditor(editorState.copy(blocks = it)) },
-                                        onTogglePin = {
-                                            commitEditor(editorState.copy(pinned = !editorState.pinned))
-                                        },
-                                        onMoveToFolder = { folderId ->
-                                            commitEditor(editorState.copy(folderId = folderId))
-                                        },
-                                        onCreateFolderAndMove = { name ->
-                                            val id = addFolder(name)
-                                            commitEditor(editorState.copy(folderId = id))
-                                        },
-                                        onToggleLock = {
-                                            commitEditor(editorState.copy(locked = !editorState.locked))
-                                        },
-                                        onDelete = {
-                                            trash(listOf(editorState.noteId))
-                                            popBack()
-                                        },
-                                        onAttach = { kind ->
-                                            when (kind) {
-                                                AttachKind.Photos -> photoPicker.launch("image/*")
-                                                AttachKind.Files -> filePicker.launch(arrayOf("*/*"))
-                                                AttachKind.Camera,
-                                                AttachKind.ScanDocument -> cameraCapture.launch(null)
-                                                AttachKind.VoiceMemo -> runCatching {
-                                                    voiceRecorder.launch(
-                                                        Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION),
-                                                    )
-                                                }
+                                NoteEditorScreen(
+                                    state = editorState.copy(folders = folders),
+                                    onBack = { popBack() },
+                                    onTitleChange = { commitEditor(editorState.copy(title = it)) },
+                                    onBlocksChange = { commitEditor(editorState.copy(blocks = it)) },
+                                    onTogglePin = {
+                                        commitEditor(editorState.copy(pinned = !editorState.pinned))
+                                    },
+                                    onMoveToFolder = { folderId ->
+                                        commitEditor(editorState.copy(folderId = folderId))
+                                    },
+                                    onCreateFolderAndMove = { name ->
+                                        val id = addFolder(name)
+                                        commitEditor(editorState.copy(folderId = id))
+                                    },
+                                    onToggleLock = {
+                                        commitEditor(editorState.copy(locked = !editorState.locked))
+                                    },
+                                    onDelete = {
+                                        trash(listOf(editorState.noteId))
+                                        popBack()
+                                    },
+                                    onAttach = { kind ->
+                                        when (kind) {
+                                            AttachKind.Photos -> photoPicker.launch("image/*")
+                                            AttachKind.Files -> filePicker.launch(arrayOf("*/*"))
+                                            AttachKind.Camera,
+                                            AttachKind.ScanDocument -> cameraCapture.launch(null)
+
+                                            AttachKind.VoiceMemo -> runCatching {
+                                                voiceRecorder.launch(
+                                                    Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION),
+                                                )
                                             }
-                                        },
-                                    )
-                                }
+                                        }
+                                    },
+                                )
+
                             }
 
                             AppDestination.Folders -> NavEntry(key) {
-                                Scaled {
-                                    FoldersScreen(
-                                        state = foldersUi,
-                                        onOpenAllNotes = {
-                                            selectedFolder = null
-                                            backStack.clear()
-                                            backStack.add(AppDestination.Notes)
-                                        },
-                                        onOpenFolder = { folder ->
-                                            backStack.add(AppDestination.FolderDetails(folder.id))
-                                        },
-                                        onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
-                                        onCreateFolder = { name -> addFolder(name) },
-                                        onRenameFolder = { id, name ->
-                                            foldersBase = foldersBase.map {
-                                                if (it.id == id) it.copy(name = name) else it
-                                            }
-                                        },
-                                        onDeleteFolder = { id, deleteNotes -> deleteFolder(id, deleteNotes) },
-                                        onMoveFolder = { fromId, toId ->
-                                            val list = foldersBase.toMutableList()
-                                            val fromIdx = list.indexOfFirst { it.id == fromId }
-                                            val toIdx = list.indexOfFirst { it.id == toId }
-                                            if (fromIdx != -1 && toIdx != -1) {
-                                                list.add(toIdx, list.removeAt(fromIdx))
-                                                foldersBase = list
-                                            }
-                                        },
-                                        onReorderFinished = {},
-                                    )
-                                }
+                                FoldersScreen(
+                                    state = foldersUi,
+                                    onOpenAllNotes = {
+                                        selectedFolder = null
+                                        backStack.clear()
+                                        backStack.add(AppDestination.Notes)
+                                    },
+                                    onOpenFolder = { folder ->
+                                        backStack.add(AppDestination.FolderDetails(folder.id))
+                                    },
+                                    onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
+                                    onCreateFolder = { name -> addFolder(name) },
+                                    onRenameFolder = { id, name ->
+                                        foldersBase = foldersBase.map {
+                                            if (it.id == id) it.copy(name = name) else it
+                                        }
+                                    },
+                                    onDeleteFolder = { id, deleteNotes ->
+                                        deleteFolder(
+                                            id,
+                                            deleteNotes
+                                        )
+                                    },
+                                    onMoveFolder = { fromId, toId ->
+                                        val list = foldersBase.toMutableList()
+                                        val fromIdx = list.indexOfFirst { it.id == fromId }
+                                        val toIdx = list.indexOfFirst { it.id == toId }
+                                        if (fromIdx != -1 && toIdx != -1) {
+                                            list.add(toIdx, list.removeAt(fromIdx))
+                                            foldersBase = list
+                                        }
+                                    },
+                                    onReorderFinished = {},
+                                )
+
                             }
 
                             is AppDestination.FolderDetails -> {
@@ -534,103 +570,113 @@ fun AppNavigation() {
                                     settingsState.sortOrder,
                                 ).map { it.toFolderNote(now) }
                                 NavEntry(key) {
-                                    Scaled {
-                                        FolderDetailScreen(
-                                            state = FolderDetailUiState(
-                                                folder = folder,
-                                                notes = folderNotes,
-                                                otherFolderNames = folders
-                                                    .filter { it.id != folderId }
-                                                    .map { it.name },
-                                            ),
-                                            onBack = { popBack() },
-                                            onOpenNote = { note -> openNote(note.id) },
-                                            onNewNote = { startNewNote(folderId = folderId) },
-                                            onRename = { newName ->
-                                                foldersBase = foldersBase.map {
-                                                    if (it.id == folderId) it.copy(name = newName) else it
-                                                }
-                                            },
-                                            onColorChange = { newColor ->
-                                                foldersBase = foldersBase.map {
-                                                    if (it.id == folderId) it.copy(color = newColor) else it
-                                                }
-                                            },
-                                            onSortNotes = {},
-                                            onDeleteFolder = { deleteNotes ->
-                                                deleteFolder(folderId, deleteNotes)
-                                                popBack()
-                                            },
-                                        )
-                                    }
+                                    FolderDetailScreen(
+                                        state = FolderDetailUiState(
+                                            folder = folder,
+                                            notes = folderNotes,
+                                            otherFolderNames = folders
+                                                .filter { it.id != folderId }
+                                                .map { it.name },
+                                        ),
+                                        onBack = { popBack() },
+                                        onOpenNote = { note -> openNote(note.id) },
+                                        onNewNote = { startNewNote(folderId = folderId) },
+                                        onRename = { newName ->
+                                            foldersBase = foldersBase.map {
+                                                if (it.id == folderId) it.copy(name = newName) else it
+                                            }
+                                        },
+                                        onColorChange = { newColor ->
+                                            foldersBase = foldersBase.map {
+                                                if (it.id == folderId) it.copy(color = newColor) else it
+                                            }
+                                        },
+                                        onSortNotes = {},
+                                        onDeleteFolder = { deleteNotes ->
+                                            deleteFolder(folderId, deleteNotes)
+                                            popBack()
+                                        },
+                                    )
+
                                 }
                             }
 
                             AppDestination.RecentlyDeleted -> NavEntry(key) {
-                                Scaled {
-                                    RecentlyDeletedScreen(
-                                        state = RecentlyDeletedUiState(
-                                            notes = trashedNotes.map { it.toDeletedNote(now) },
-                                        ),
-                                        onBack = { popBack() },
-                                        onOpenNote = { _ -> },
-                                        onRestore = { ids -> restore(ids) },
-                                        onDeleteForever = { ids ->
-                                            allNotes = allNotes.filterNot { it.id in ids }
-                                        },
-                                    )
-                                }
+                                RecentlyDeletedScreen(
+                                    state = RecentlyDeletedUiState(
+                                        notes = trashedNotes.map { it.toDeletedNote(now) },
+                                    ),
+                                    onBack = { popBack() },
+                                    onOpenNote = { _ -> },
+                                    onRestore = { ids -> restore(ids) },
+                                    onDeleteForever = { ids ->
+                                        allNotes = allNotes.filterNot { it.id in ids }
+                                    },
+                                )
+
                             }
 
                             AppDestination.Settings -> NavEntry(key) {
-                                Scaled {
-                                    SettingsScreen(
-                                        state = settingsState,
-                                        onAppearanceChange = { settingsState = settingsState.copy(appearance = it) },
-                                        onAccentChange = { settingsState = settingsState.copy(accent = it) },
-                                        onDynamicColorChange = { settingsState = settingsState.copy(dynamicColor = it) },
-                                        onTextSizeChange = { settingsState = settingsState.copy(textSize = it) },
-                                        onOpenSheet = { settingsState = settingsState.copy(openSheet = it) },
-                                        onCloseSheet = {
-                                            settingsState = settingsState.copy(openSheet = SettingsSheet.None)
-                                        },
-                                        onSortSave = { sort, order ->
-                                            settingsState = settingsState.copy(
-                                                sort = sort,
-                                                sortOrder = order,
-                                                openSheet = SettingsSheet.None,
+                                SettingsScreen(
+                                    state = settingsState,
+                                    onAppearanceChange = {
+                                        settingsState = settingsState.copy(appearance = it)
+                                    },
+                                    onAccentChange = {
+                                        settingsState = settingsState.copy(accent = it)
+                                    },
+                                    onDynamicColorChange = {
+                                        settingsState = settingsState.copy(dynamicColor = it)
+                                    },
+                                    onTextSizeChange = {
+                                        settingsState = settingsState.copy(textSize = it)
+                                    },
+                                    onOpenSheet = {
+                                        settingsState = settingsState.copy(openSheet = it)
+                                    },
+                                    onCloseSheet = {
+                                        settingsState =
+                                            settingsState.copy(openSheet = SettingsSheet.None)
+                                    },
+                                    onSortSave = { sort, order ->
+                                        settingsState = settingsState.copy(
+                                            sort = sort,
+                                            sortOrder = order,
+                                            openSheet = SettingsSheet.None,
+                                        )
+                                    },
+                                    onStartWithSave = { start ->
+                                        settingsState = settingsState.copy(
+                                            newNoteStart = start,
+                                            openSheet = SettingsSheet.None,
+                                        )
+                                    },
+                                    onShowPreviewsChange = {
+                                        settingsState = settingsState.copy(showPreviews = it)
+                                    },
+                                    onOpenPrivacy = { backStack.add(AppDestination.PrivacyPolicy) },
+                                    onRateApp = {
+                                        val marketIntent = Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("market://details?id=${context.packageName}"),
+                                        )
+                                        try {
+                                            context.startActivity(marketIntent)
+                                        } catch (_: ActivityNotFoundException) {
+                                            context.startActivity(
+                                                Intent(
+                                                    Intent.ACTION_VIEW,
+                                                    "https://play.google.com/store/apps/details?id=${context.packageName}".toUri(),
+                                                ),
                                             )
-                                        },
-                                        onStartWithSave = { start ->
-                                            settingsState = settingsState.copy(
-                                                newNoteStart = start,
-                                                openSheet = SettingsSheet.None,
-                                            )
-                                        },
-                                        onShowPreviewsChange = { settingsState = settingsState.copy(showPreviews = it) },
-                                        onOpenPrivacy = { backStack.add(AppDestination.PrivacyPolicy) },
-                                        onRateApp = {
-                                            val marketIntent = Intent(
-                                                Intent.ACTION_VIEW,
-                                                Uri.parse("market://details?id=${context.packageName}"),
-                                            )
-                                            try {
-                                                context.startActivity(marketIntent)
-                                            } catch (_: ActivityNotFoundException) {
-                                                context.startActivity(
-                                                    Intent(
-                                                        Intent.ACTION_VIEW,
-                                                        Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"),
-                                                    ),
-                                                )
-                                            }
-                                        },
-                                    )
-                                }
+                                        }
+                                    },
+                                )
+
                             }
 
                             AppDestination.PrivacyPolicy -> NavEntry(key) {
-                                Scaled { PrivacyPolicyScreen(onBack = { popBack() }) }
+                                PrivacyPolicyScreen(onBack = { popBack() })
                             }
                         }
                     },

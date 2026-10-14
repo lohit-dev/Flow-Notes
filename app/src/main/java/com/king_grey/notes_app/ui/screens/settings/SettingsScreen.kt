@@ -79,7 +79,6 @@ import androidx.compose.ui.unit.dp
 import com.king_grey.notes_app.R
 import com.king_grey.notes_app.ui.screens.shared.ConnectedToggleGroup
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
-import com.king_grey.notes_app.ui.screens.shared.Scaled
 import com.king_grey.notes_app.ui.screens.shared.screenType
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 import kotlinx.coroutines.launch
@@ -118,7 +117,7 @@ const val TextSizeMax = 24
 data class SettingsUiState(
     val appearance: AppearanceMode = AppearanceMode.System,
     val accent: AccentColor = AccentColor.Violet,
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val textSize: Int = 17,                          // sp, TextSizeMin..TextSizeMax
     val sort: NoteSort = NoteSort.DateEdited,
     val sortOrder: SortOrder = SortOrder.NewestFirst,
@@ -208,6 +207,14 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 SettingsGroup(
+                    { shapes ->
+                        SwitchRow(
+                            label = "Dynamic color",
+                            checked = state.dynamicColor,
+                            onCheckedChange = onDynamicColorChange,
+                            shapes = shapes,
+                        )
+                    },
                     { shapes ->
                         AccentRow(
                             selected = state.accent,
@@ -625,50 +632,49 @@ private fun ChoiceSheet(
             )
         },
     ) {
-        Scaled {
-            Column(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 26.dp),
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier
+                    .padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
+                    .semantics { heading() },
+                style = screenType(20f, FontWeight.Bold, lineHeight = 24f),
+                color = colors.onSurface,
+            )
+            content()
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 26.dp),
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                Text(
-                    text = title,
-                    modifier = Modifier
-                        .padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
-                        .semantics { heading() },
-                    style = screenType(20f, FontWeight.Bold, lineHeight = 24f),
-                    color = colors.onSurface,
-                )
-                content()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                FilledTonalButton(
+                    onClick = { closeThen(onCancel) },
+                    modifier = Modifier.height(48.dp),
+                    shapes = ButtonDefaults.shapes(),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = colors.secondaryContainer,
+                        contentColor = colors.onSecondaryContainer,
+                    ),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
                 ) {
-                    FilledTonalButton(
-                        onClick = { closeThen(onCancel) },
-                        modifier = Modifier.height(48.dp),
-                        shapes = ButtonDefaults.shapes(),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = colors.secondaryContainer,
-                            contentColor = colors.onSecondaryContainer,
-                        ),
-                        contentPadding = PaddingValues(horizontal = 24.dp),
-                    ) {
-                        Text("Cancel", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
-                    }
-                    Button(
-                        onClick = { closeThen(onDone) },
-                        modifier = Modifier.height(48.dp),
-                        shapes = ButtonDefaults.shapes(),
-                        contentPadding = PaddingValues(horizontal = 24.dp),
-                    ) {
-                        Text("Done", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
-                    }
+                    Text("Cancel", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
+                }
+                Button(
+                    onClick = { closeThen(onDone) },
+                    modifier = Modifier.height(48.dp),
+                    shapes = ButtonDefaults.shapes(),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                ) {
+                    Text("Done", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
                 }
             }
         }
+    
     }
 }
 

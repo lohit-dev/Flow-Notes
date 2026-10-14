@@ -63,12 +63,13 @@ private fun startOfDay(now: Long): Long = Calendar.getInstance().apply {
     set(Calendar.MILLISECOND, 0)
 }.timeInMillis
 
-/** "Today", "Yesterday", or "12 Oct" / "12 Oct 2025". */
+/** Mockup: a time for today ("10:42 AM"), "Yesterday", a weekday within a week, then "12 Oct". */
 fun listDateLabel(millis: Long, now: Long = System.currentTimeMillis()): String {
     val today = startOfDay(now)
     return when {
-        millis >= today -> "Today"
+        millis >= today -> SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(millis))
         millis >= today - DAY_MS -> "Yesterday"
+        millis >= today - 6 * DAY_MS -> SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(millis))
         else -> {
             val sameYear = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.YEAR) ==
                 Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.YEAR)
