@@ -832,7 +832,7 @@ private fun rememberWallpaperSeed(): Color? {
 @Composable
 fun FlowNotesTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
     palette: FlowNotesPalette = FlowNotesPalette.Sapphire,
     content: @Composable () -> Unit

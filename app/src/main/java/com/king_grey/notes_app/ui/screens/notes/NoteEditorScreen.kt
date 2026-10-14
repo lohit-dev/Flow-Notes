@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -167,6 +169,8 @@ data class NoteEditorUiState(
     val folderId: Long? = null,
     /** A note that was just created: the keyboard opens on the title, or on the checklist row. */
     val isNew: Boolean = false,
+    /** Settings → "New notes start with: Body". The keyboard opens on the body, not the title. */
+    val startOnBody: Boolean = false,
 )
 
 private enum class EditorSheet { None, Attach, Table, Move }
@@ -251,10 +255,11 @@ fun NoteEditorScreen(
     LaunchedEffect(state.noteId) {
         if (state.isNew) {
             val first = blocks.firstOrNull()
-            focusTarget = if (first is NoteBlock.Check) FocusTarget(
-                first.id,
-                first.text.length
-            ) else FocusTarget(TitleId, 0)
+            focusTarget = when {
+                first is NoteBlock.Check -> FocusTarget(first.id, first.text.length)
+                state.startOnBody && first != null -> FocusTarget(first.id, 0)
+                else -> FocusTarget(TitleId, 0)
+            }
         }
     }
 
@@ -498,6 +503,9 @@ fun NoteEditorScreen(
 
     BackHandler(enabled = formatOpen) { formatOpen = false }
 
+    // The mockup: status bar, then the 64dp bar, then the page starts 72dp below the bar's top.
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
             containerColor = colors.background,
@@ -509,7 +517,7 @@ fun NoteEditorScreen(
                 contentPadding = PaddingValues(
                     start = 20.dp,
                     end = 20.dp,
-                    top = padding.calculateTopPadding() + 72.dp,
+                    top = padding.calculateTopPadding() + statusTop + 72.dp,
                     bottom = 200.dp,
                 ),
             ) {

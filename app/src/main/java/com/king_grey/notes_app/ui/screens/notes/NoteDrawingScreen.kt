@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -71,13 +70,6 @@ fun NoteDrawingScreen(
     var tool by remember { mutableStateOf(Tool.Pen) }
     var ink by remember { mutableStateOf(0L) }
     var width by remember { mutableStateOf(3f) }
-    // Keep one SliderState for the lifetime of the drawing screen. Recreating it from
-    // `width` on every recomposition makes the thumb appear to snap back while dragging.
-    val sliderState = rememberSliderState(
-        value = width,
-        steps = 0,
-        trackRange = 1f..12f,
-    )
     // The stroke being drawn right now, kept apart so only the live part redraws.
     var live by remember { mutableStateOf<DrawingStroke?>(null) }
 
@@ -283,14 +275,16 @@ fun NoteDrawingScreen(
                         )
                     }
                 }
+                // The value-based Slider: `width` is the single source of truth, and the pen
+                // gesture above re-reads it (pointerInput is keyed on `width`).
                 Slider(
-                    state = sliderState,
+                    value = width,
                     onValueChange = { width = it },
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 16.dp),
                     enabled = tool != Tool.Eraser,
-                    onValueChangeFinished = {},
+                    valueRange = 1f..12f,
                 )
             }
         }
