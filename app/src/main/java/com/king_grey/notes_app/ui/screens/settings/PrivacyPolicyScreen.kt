@@ -33,41 +33,20 @@ private data class PolicySection(val title: String, val body: String)
 
 private val PolicySections = listOf(
     PolicySection(
-        "The short version",
-        "Flow Notes keeps your notes on this phone. It has no account, no sign in and no " +
-                "advertising, and it does not send your notes to anyone.",
+        "Your notes stay on your phone",
+        "Flow Notes keeps your notes, folders and settings on this device. There is no account " +
+                "and no sign in, and your notes are never uploaded to our servers.",
     ),
     PolicySection(
-        "What the app stores",
-        "Your notes, folders and settings (theme, accent color, text size and sort order) are " +
-                "saved on this device only. Photos, files and drawings you add to a note are " +
-                "kept with that note.",
+        "No tracking",
+        "Flow Notes has no advertising, no analytics and no trackers. It does not collect " +
+                "personal information or share anything about you with anyone.",
     ),
     PolicySection(
-        "Permissions",
-        "Flow Notes asks for access only when you use a feature. The camera is used when you " +
-                "take a photo or scan a page, and your photos and files are opened through the " +
-                "system picker, so the app only sees what you choose. The microphone is used " +
-                "only for voice memos you start yourself.",
-    ),
-    PolicySection(
-        "Locked notes",
-        "Locking a note uses your fingerprint, face or screen lock through the Android system " +
-                "prompt. Flow Notes never sees or stores your biometric data.",
-    ),
-    PolicySection(
-        "Sharing",
-        "A note leaves the app only when you tap Share and pick where it goes. What happens " +
-                "after that depends on the app you share it with.",
-    ),
-    PolicySection(
-        "Deleting your data",
-        "Deleted notes stay in Recently deleted for 30 days and are then removed for good. " +
-                "You can empty it at any time. Uninstalling the app removes everything it stored.",
-    ),
-    PolicySection(
-        "Changes to this policy",
-        "If this policy changes, the new version appears here with a new date.",
+        "Backups",
+        "If Android backup is turned on for your phone, your notes may be included in your " +
+                "device backup. That backup is managed by your Google account, not by Flow Notes. " +
+                "Uninstalling the app removes everything it stored on the phone.",
     ),
     PolicySection(
         "Questions",
@@ -93,7 +72,7 @@ fun PrivacyPolicyScreen(
         topBar = {
             FlowNotesLargeTopAppBar(
                 title = "Privacy policy",
-                subtitle = "Last updated 14 October 2026",
+                subtitle = "Updated 1 October 2026",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = { BackButton(onBack) },
             )

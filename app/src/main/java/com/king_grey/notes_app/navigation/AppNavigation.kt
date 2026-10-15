@@ -117,30 +117,38 @@ fun AppNavigation() {
     var recentSearches by remember { mutableStateOf(emptyList<String>()) }
 
     // ── Derived from the store ───────────────────────────────────────────────
-    val now = System.currentTimeMillis()
-    val liveNotes = allNotes.filter { it.deletedAt == null }
-    val trashedNotes = allNotes.filter { it.deletedAt != null }
-    val folders =
-        foldersBase.map { f -> f.copy(noteCount = liveNotes.count { it.folderId == f.id }) }
-    val foldersUi = FoldersUiState(
-        folders = folders,
-        allNotesCount = liveNotes.size,
-        deletedCount = trashedNotes.size,
+    // Functions, not vals: NavDisplay keeps each entry's lambda, so a value computed here would
+    // be frozen at the moment the entry was created. Calling these inside the entry content
+    // reads the state there, and the screen recomposes when it changes.
+    fun liveNotes() = allNotes.filter { it.deletedAt == null }
+    fun trashedNotes() = allNotes.filter { it.deletedAt != null }
+    fun folders(): List<FolderItem> {
+        val live = liveNotes()
+        return foldersBase.map { f -> f.copy(noteCount = live.count { it.folderId == f.id }) }
+    }
+
+    fun foldersUi() = FoldersUiState(
+        folders = folders(),
+        allNotesCount = liveNotes().size,
+        deletedCount = trashedNotes().size,
     )
-    val notesUi = NotesUiState(
-        sections = groupForList(
-            notes = liveNotes.filter { selectedFolder == null || it.folderId == selectedFolder },
-            folders = folders,
+
+    fun notesUi(): NotesUiState {
+        val all = folders()
+        return NotesUiState(
+            sections = groupForList(
+                notes = liveNotes().filter { selectedFolder == null || it.folderId == selectedFolder },
+                folders = all,
+                sort = settingsState.sort,
+                order = settingsState.sortOrder,
+            ),
+            folders = all,
+            selectedFolderId = selectedFolder,
+            viewMode = viewMode,
             sort = settingsState.sort,
-            order = settingsState.sortOrder,
-            now = now,
-        ),
-        folders = folders,
-        selectedFolderId = selectedFolder,
-        viewMode = viewMode,
-        sort = settingsState.sort,
-        sortOrder = settingsState.sortOrder,
-    )
+            sortOrder = settingsState.sortOrder,
+        )
+    }
 
     // ── Store operations ─────────────────────────────────────────────────────
     fun updateNotes(ids: Collection<Long>, change: (StoredNote) -> StoredNote) {
@@ -400,7 +408,7 @@ fun AppNavigation() {
                         when (key) {
                             AppDestination.Notes -> NavEntry(key) {
                                 NotesScreen(
-                                    state = notesUi,
+                                    state = notesUi(),
                                     onOpenNote = { note -> openNote(note.id) },
                                     onNewNote = { startNewNote() },
                                     onNewChecklist = { startNewNote(forceChecklist = true) },
@@ -443,18 +451,18 @@ fun AppNavigation() {
                                 val results = if (query.isEmpty()) {
                                     emptyList()
                                 } else {
-                                    liveNotes
+                                    liveNotes()
                                         .filter { note ->
                                             (searchFolderId == null || note.folderId == searchFolderId) &&
                                                     noteToPlainText(note.title, note.blocks)
                                                         .contains(query, ignoreCase = true)
                                         }
                                         .sortedByDescending { it.editedAt }
-                                        .map { it.toNoteItem(folders, now) }
+                                        .map { it.toNoteItem(folders()) }
                                 }
                                 SearchScreen(
                                     state = SearchUiState(
-                                        folders = folders,
+                                        folders = folders(),
                                         selectedFolderId = searchFolderId,
                                         recent = recentSearches,
                                         results = results,
@@ -483,7 +491,7 @@ fun AppNavigation() {
 
                             is AppDestination.NoteEditor -> NavEntry(key) {
                                 NoteEditorScreen(
-                                    state = editorState.copy(folders = folders),
+                                    state = editorState.copy(folders = folders()),
                                     onBack = { popBack() },
                                     onTitleChange = { commitEditor(editorState.copy(title = it)) },
                                     onBlocksChange = { commitEditor(editorState.copy(blocks = it)) },
@@ -524,7 +532,7 @@ fun AppNavigation() {
 
                             AppDestination.Folders -> NavEntry(key) {
                                 FoldersScreen(
-                                    state = foldersUi,
+                                    state = foldersUi(),
                                     onOpenAllNotes = {
                                         selectedFolder = null
                                         backStack.clear()
@@ -562,19 +570,20 @@ fun AppNavigation() {
 
                             is AppDestination.FolderDetails -> {
                                 val folderId = key.folderId
-                                val folder = folders.firstOrNull { it.id == folderId }
-                                    ?: FolderItem(folderId, "Folder", FolderColor.Violet, 0)
-                                val folderNotes = sortNotes(
-                                    liveNotes.filter { it.folderId == folderId },
-                                    settingsState.sort,
-                                    settingsState.sortOrder,
-                                ).map { it.toFolderNote(now) }
                                 NavEntry(key) {
+                                    val all = folders()
+                                    val folder = all.firstOrNull { it.id == folderId }
+                                        ?: FolderItem(folderId, "Folder", FolderColor.Violet, 0)
+                                    val folderNotes = sortNotes(
+                                        liveNotes().filter { it.folderId == folderId },
+                                        settingsState.sort,
+                                        settingsState.sortOrder,
+                                    ).map { it.toFolderNote() }
                                     FolderDetailScreen(
                                         state = FolderDetailUiState(
                                             folder = folder,
                                             notes = folderNotes,
-                                            otherFolderNames = folders
+                                            otherFolderNames = all
                                                 .filter { it.id != folderId }
                                                 .map { it.name },
                                         ),
@@ -604,7 +613,7 @@ fun AppNavigation() {
                             AppDestination.RecentlyDeleted -> NavEntry(key) {
                                 RecentlyDeletedScreen(
                                     state = RecentlyDeletedUiState(
-                                        notes = trashedNotes.map { it.toDeletedNote(now) },
+                                        notes = trashedNotes().map { it.toDeletedNote() },
                                     ),
                                     onBack = { popBack() },
                                     onOpenNote = { _ -> },

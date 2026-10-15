@@ -20,6 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +63,7 @@ private enum class Tool { Pen, Marker, Eraser }
  * Done returns every stroke; Cancel and back return nothing. The mockup's fourth tool (the sort
  * icon) has no action in the mockup either and is left out.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NoteDrawingScreen(
     initial: List<DrawingStroke>,
@@ -68,14 +74,21 @@ fun NoteDrawingScreen(
     val strokes = remember { mutableStateListOf<DrawingStroke>().also { it.addAll(initial) } }
     val redoStack = remember { mutableStateListOf<DrawingStroke>() }
     var tool by remember { mutableStateOf(Tool.Pen) }
-    var ink by remember { mutableStateOf(0L) }
+    var inkChoice by remember { mutableStateOf<Long?>(null) }
     var width by remember { mutableStateOf(3f) }
     // The stroke being drawn right now, kept apart so only the live part redraws.
     var live by remember { mutableStateOf<DrawingStroke?>(null) }
 
     BackHandler(onBack = onCancel)
 
-    val swatches = listOf(0L, 0xFFE53935L, 0xFF1E88E5L, 0xFF43A047L, 0xFFFB8C00L)
+    // The mockup's pen colors (its folder colors), light or dark to suit the theme; 0 is ink.
+    val darkTheme = colors.surface.luminance() < 0.5f
+    val swatches = if (darkTheme) {
+        listOf(0xFFA5A2FFL, 0xFFFF8AB3L, 0xFF6FD58CL, 0xFFFFB74DL, 0L)
+    } else {
+        listOf(0xFF5B57E8L, 0xFFE0356BL, 0xFF2F9E4FL, 0xFFE08A00L, 0L)
+    }
+    val ink = inkChoice ?: swatches.first()
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.surface) {
         Column(
@@ -203,122 +216,119 @@ fun NoteDrawingScreen(
                 }
             }
 
-            // ── Tools and Done ───────────────────────────────────────────────
-            Row(
+            // ── Tools and Done: the Material 3 Expressive floating toolbar (vibrant) ──────────
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(24.dp),
-                    color = colors.surfaceContainerHigh,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ToolButton(PenToolIcon, "Pen", tool == Tool.Pen) { tool = Tool.Pen }
-                        ToolButton(MarkerToolIcon, "Marker", tool == Tool.Marker) {
-                            tool = Tool.Marker
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+                    floatingActionButton = {
+                        FloatingToolbarDefaults.VibrantFloatingActionButton(
+                            onClick = { onDone(strokes.toList()) },
+                        ) {
+                            Icon(
+                                CheckStrokeIcon,
+                                contentDescription = "Done",
+                                modifier = Modifier.size(28.dp),
+                            )
                         }
-                        ToolButton(EraserToolIcon, "Eraser", tool == Tool.Eraser) {
-                            tool = Tool.Eraser
-                        }
-                    }
-                }
-                Surface(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clickable { onDone(strokes.toList()) },
-                    shape = RoundedCornerShape(20.dp),
-                    color = colors.primary,
-                    contentColor = colors.onPrimary,
+                    },
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            CheckStrokeIcon,
-                            contentDescription = "Done",
-                            modifier = Modifier.size(28.dp)
-                        )
+                    ToolButton(PenToolIcon, "Pen", tool == Tool.Pen) { tool = Tool.Pen }
+                    ToolButton(MarkerToolIcon, "Marker", tool == Tool.Marker) { tool = Tool.Marker }
+                    ToolButton(EraserToolIcon, "Eraser", tool == Tool.Eraser) { tool = Tool.Eraser }
+                    // Stroke size presets: thin, medium, thick.
+                    ToolButton(WidthToolIcon, "Stroke size", false) {
+                        width = when {
+                            width < 4f -> 6f
+                            width < 8f -> 10f
+                            else -> 2f
+                        }
                     }
                 }
             }
 
-            // ── Colors and width ─────────────────────────────────────────────
-            Row(
+            // ── Colors and width: one rounded tray ───────────────────────────
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                shape = RoundedCornerShape(32.dp),
+                color = colors.surfaceContainerHigh,
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    swatches.forEach { c ->
-                        val selected = ink == c
-                        val fill = if (c == 0L) colors.onSurface else Color(c.toInt())
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(fill)
-                                .then(
-                                    if (selected) Modifier.border(
-                                        3.dp,
-                                        colors.primary,
-                                        CircleShape
-                                    ) else Modifier,
-                                )
-                                .clickable(enabled = tool != Tool.Eraser) { ink = c },
-                        )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        swatches.forEach { c ->
+                            val selected = ink == c
+                            val fill = if (c == 0L) colors.onSurface else Color(c.toInt())
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(fill)
+                                    .then(
+                                        if (selected) Modifier.border(3.dp, colors.primary, CircleShape)
+                                        else Modifier,
+                                    )
+                                    .clickable(enabled = tool != Tool.Eraser) { inkChoice = c },
+                            )
+                        }
                     }
+                    // `width` is the single source of truth; the pen gesture re-reads it
+                    // because pointerInput is keyed on it.
+                    Slider(
+                        value = width,
+                        onValueChange = { width = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp),
+                        enabled = tool != Tool.Eraser,
+                        valueRange = 1f..12f,
+                    )
                 }
-                // The value-based Slider: `width` is the single source of truth, and the pen
-                // gesture above re-reads it (pointerInput is keyed on `width`).
-                Slider(
-                    value = width,
-                    onValueChange = { width = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 16.dp),
-                    enabled = tool != Tool.Eraser,
-                    valueRange = 1f..12f,
-                )
             }
         }
     }
 }
 
+/** A 48dp round toolbar button: a primary circle with an on-primary icon when selected. */
 @Composable
 private fun ToolButton(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Surface(
+    Box(
         modifier = Modifier
             .size(48.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = if (selected) colors.primaryContainer else Color.Transparent,
-        contentColor = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            .clip(CircleShape)
+            .background(if (selected) colors.primary else Color.Transparent)
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
-        }
+        Icon(
+            icon,
+            contentDescription = label,
+            modifier = Modifier.size(24.dp),
+            tint = if (selected) colors.onPrimary else colors.onPrimaryContainer,
+        )
     }
 }
 
 private val RedoIcon by lazy { strokeIcon("Redo", "M16 5l4 4-4 4M20 9H10a5 5 0 0 0 0 10h6") }
-private val PenToolIcon by lazy { strokeIcon("PenTool", "M4 20l1-4L16 5l3 3L8 19zM14 7l3 3") }
+private val PenToolIcon by lazy {
+    strokeIcon("PenTool", "M16.5 3.5l4 4L8 20l-5 1 1-5zM14 6l4 4")
+}
 private val MarkerToolIcon by lazy {
-    strokeIcon(
-        "MarkerTool",
-        "M9 3l6 6-8 8H3v-4zM13 5l6 6M3 21h18"
-    )
+    strokeIcon("MarkerTool", "M13 4l6 6-6 6-5-1-1-5zM4 21h7")
 }
 private val EraserToolIcon by lazy {
-    strokeIcon(
-        "EraserTool",
-        "M7 21h13M5 13l8-8 6 6-8 8H8zM9 9l6 6"
-    )
+    strokeIcon("EraserTool", "M7 20h13M4.5 14.5l8-8 6 6-6 6h-4zM9 9l6 6")
+}
+private val WidthToolIcon by lazy {
+    strokeIcon("WidthTool", "M4 6h16M7 12h10M10 18h4")
 }

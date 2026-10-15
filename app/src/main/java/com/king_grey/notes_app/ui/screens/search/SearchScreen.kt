@@ -44,7 +44,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItemDefaults
@@ -154,7 +153,7 @@ fun SearchScreen(
 
     Scaffold(
         modifier = modifier,
-        containerColor = colors.surfaceContainerLow,
+        containerColor = colors.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -164,13 +163,17 @@ fun SearchScreen(
                 .statusBarsPadding()
                 .imePadding(),
         ) {
-            // .qtop: back, the field, then mic (empty) or clear (typed)
+            // .sin: 56dp pill (28dp radius, surfaceContainerHigh): back, the field, then mic or clear
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(colors.surfaceContainerHigh)
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 BackButton(onBack)
                 BasicTextField(
@@ -180,7 +183,7 @@ fun SearchScreen(
                         .weight(1f)
                         .focusRequester(focus),
                     singleLine = true,
-                    textStyle = screenType(18f, FontWeight.Normal, lineHeight = 24f)
+                    textStyle = screenType(16f, FontWeight.Normal, lineHeight = 22f)
                         .copy(color = colors.onSurface),
                     cursorBrush = SolidColor(colors.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -194,7 +197,7 @@ fun SearchScreen(
                             if (query.isEmpty()) {
                                 Text(
                                     text = "Search notes",
-                                    style = screenType(18f, FontWeight.Normal, lineHeight = 24f),
+                                    style = screenType(16f, FontWeight.Normal, lineHeight = 22f),
                                     color = colors.onSurfaceVariant,
                                 )
                             }
@@ -225,11 +228,10 @@ fun SearchScreen(
                     }
                 }
             }
-            HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.7f))
 
             if (state.folders.isNotEmpty()) {
                 LazyRow(
-                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                    modifier = Modifier.padding(bottom = 4.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -268,8 +270,8 @@ fun SearchScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         EmptyBlock(
-                            art = MaterialShapes.Flower.toShape(),
-                            accent = MaterialShapes.Puffy.toShape(),
+                            art = MaterialShapes.Puffy.toShape(),
+                            accent = MaterialShapes.Clover4Leaf.toShape(),
                             icon = SearchXIcon,
                             title = "No results for “$trimmed”",
                             text = if (folderName != null) {
@@ -280,7 +282,7 @@ fun SearchScreen(
                             actionLabel = if (folderName != null) "Search all notes" else null,
                             onAction = { onFolderFilter(null) },
                             compact = true,
-                            modifier = Modifier.padding(bottom = 24.dp),
+                            modifier = Modifier.padding(bottom = 20.dp),
                         )
                     }
                 }
@@ -313,7 +315,7 @@ private fun RecentList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp),
+                    .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -325,10 +327,10 @@ private fun RecentList(
                 Text(
                     text = "Clear all",
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable(role = Role.Button, onClick = onClear)
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    style = screenType(14f, FontWeight.SemiBold, lineHeight = 20f),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    style = screenType(14f, FontWeight.Bold, lineHeight = 20f),
                     color = colors.primary,
                 )
             }
@@ -338,16 +340,16 @@ private fun RecentList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 56.dp)
+                    .height(56.dp)
                     .clickable(onClick = { onPick(term) })
-                    .padding(start = 20.dp, end = 8.dp),
+                    .padding(start = 20.dp, end = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Icon(
                     ClockIcon,
                     contentDescription = null,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                     tint = colors.onSurfaceVariant
                 )
                 Text(
@@ -360,7 +362,7 @@ private fun RecentList(
                     Icon(
                         ArrowNorthWestIcon,
                         contentDescription = "Put “$term” in the search box",
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(24.dp),
                         tint = colors.onSurfaceVariant,
                     )
                 }
@@ -376,12 +378,12 @@ private fun ResultList(results: List<NoteItem>, query: String, onOpen: (NoteItem
     val colors = MaterialTheme.colorScheme
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
     ) {
         item(key = "summary") {
             Text(
                 text = if (results.size == 1) "1 note" else "${results.size} notes",
-                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 6.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 8.dp),
                 style = screenType(14f, FontWeight.SemiBold, lineHeight = 20f),
                 color = colors.onSurfaceVariant,
             )

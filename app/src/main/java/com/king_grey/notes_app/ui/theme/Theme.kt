@@ -400,11 +400,11 @@ private val orchidDarkScheme = darkColorScheme(
 )
 
 enum class FlowNotesPalette {
-    Violet,
     Sapphire,
     Meadow,
     Sunset,
     Orchid,
+    Violet,
 }
 
 private fun FlowNotesPalette.colorScheme(isDark: Boolean) = when (this) {

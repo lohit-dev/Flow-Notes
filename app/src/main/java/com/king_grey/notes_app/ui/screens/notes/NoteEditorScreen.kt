@@ -38,10 +38,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -232,6 +236,7 @@ fun NoteEditorScreen(
     val currentBlocks by rememberUpdatedState(blocks)
 
     var menuOpen by remember { mutableStateOf(false) }
+    var lockConfirm by remember { mutableStateOf(false) }
     var formatOpen by remember { mutableStateOf(false) }
     var sheet by rememberSaveable { mutableStateOf(EditorSheet.None) }
     var dialog by rememberSaveable { mutableStateOf(EditorDialog.None) }
@@ -503,6 +508,40 @@ fun NoteEditorScreen(
 
     BackHandler(enabled = formatOpen) { formatOpen = false }
 
+    if (lockConfirm) {
+        com.king_grey.notes_app.ui.screens.folders.DialogFrame(
+            icon = LockIcon,
+            isError = false,
+            title = "Lock this note?",
+            onDismiss = { lockConfirm = false },
+        ) {
+            Text(
+                text = "You will need your fingerprint, face or screen lock to open it.",
+                modifier = Modifier.fillMaxWidth(),
+                style = screenType(15f, FontWeight.Normal, lineHeight = 22f),
+                color = colors.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Column(
+                modifier = Modifier.padding(top = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                com.king_grey.notes_app.ui.screens.folders.DialogButton(
+                    text = "Lock",
+                    onClick = { lockConfirm = false; onToggleLock() },
+                    container = colors.primary,
+                    content = colors.onPrimary,
+                )
+                com.king_grey.notes_app.ui.screens.folders.DialogButton(
+                    text = "Cancel",
+                    onClick = { lockConfirm = false },
+                    container = colors.secondaryContainer,
+                    content = colors.onSecondaryContainer,
+                )
+            }
+        }
+    }
+
     // The mockup: status bar, then the 64dp bar, then the page starts 72dp below the bar's top.
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -522,17 +561,17 @@ fun NoteEditorScreen(
                 ),
             ) {
                 item(key = "date") {
-                    if (state.dateLabel.isNotEmpty()) {
-                        Text(
-                            text = state.dateLabel,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp, bottom = 14.dp),
-                            style = screenType(13f, FontWeight.Normal, lineHeight = 18f),
-                            color = colors.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
+                    // .d: 13sp, centered, 14dp below. The row is kept (empty) when there is no date so
+                    // the title never slides under the top bar's fade.
+                    Text(
+                        text = state.dateLabel.ifEmpty { " " },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 14.dp),
+                        style = screenType(13f, FontWeight.Normal, lineHeight = 15f),
+                        color = colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 item(key = "title") {
                     TitleField(
@@ -569,9 +608,10 @@ fun NoteEditorScreen(
                                 selStart = range.start
                                 selEnd = range.end
                             },
+                            // h4: 18dp above (12dp of it is the previous block's), 10dp below
                             modifier = Modifier.padding(
-                                top = if (block.style == ParagraphStyle.Body) 0.dp else 8.dp,
-                                bottom = 12.dp,
+                                top = if (block.style == ParagraphStyle.Body) 0.dp else 6.dp,
+                                bottom = if (block.style == ParagraphStyle.Heading) 10.dp else 12.dp,
                             ),
                         )
 
@@ -663,6 +703,7 @@ fun NoteEditorScreen(
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.width(236.dp),
                     shape = RoundedCornerShape(20.dp),
                     containerColor = colors.surfaceContainerHigh,
                 ) {
@@ -685,7 +726,10 @@ fun NoteEditorScreen(
                     MenuRow(
                         if (state.locked) "Unlock note" else "Lock note",
                         LockIcon,
-                        { menuOpen = false; onToggleLock() })
+                        {
+                            menuOpen = false
+                            if (state.locked) onToggleLock() else lockConfirm = true
+                        })
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         color = colors.outlineVariant,
@@ -702,7 +746,7 @@ fun NoteEditorScreen(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(bottom = if (imeVisible) 12.dp else 28.dp),
+                .padding(bottom = if (imeVisible) 16.dp else 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -727,98 +771,93 @@ fun NoteEditorScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(32.dp),
-                    color = colors.primaryContainer,
-                    shadowElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .heightIn(min = 64.dp)
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        ToolbarToggle(
-                            on = formatOpen,
-                            label = "Format",
-                            onClick = { formatOpen = !formatOpen }) {
-                            Text(
-                                text = "Aa",
-                                style = screenType(18f, FontWeight.Black, lineHeight = 22f),
-                                color = if (formatOpen) colors.onPrimary else colors.onPrimaryContainer,
-                            )
-                        }
-                        ToolbarToggle(
-                            on = activeBlock is NoteBlock.Check,
-                            label = "Checklist",
-                            onClick = ::toggleChecklist
+            // The Material 3 Expressive floating toolbar (vibrant: primaryContainer pill, primary
+            // FAB). With the keyboard open, the check FAB sits beside it and closes the keyboard.
+            val toolbarItems: @Composable RowScope.() -> Unit = {
+        ToolbarToggle(
+            on = formatOpen,
+            label = "Format",
+            onClick = { formatOpen = !formatOpen }) {
+            Text(
+                text = "Aa",
+                style = screenType(18f, FontWeight.Black, lineHeight = 22f),
+                color = if (formatOpen) colors.onPrimary else colors.onPrimaryContainer,
+            )
+        }
+        ToolbarToggle(
+            on = activeBlock is NoteBlock.Check,
+            label = "Checklist",
+            onClick = ::toggleChecklist
+        ) {
+            Icon(
+                ListIcon, contentDescription = null,
+                tint = if (activeBlock is NoteBlock.Check) colors.onPrimary else colors.onPrimaryContainer,
+            )
+        }
+        ToolbarToggle(
+            on = false,
+            label = "Insert table",
+            onClick = { formatOpen = false; sheet = EditorSheet.Table }) {
+            Icon(
+                TableIcon,
+                contentDescription = null,
+                tint = colors.onPrimaryContainer
+            )
+        }
+        ToolbarToggle(
+            on = false,
+            label = "Add to note",
+            onClick = { formatOpen = false; sheet = EditorSheet.Attach }) {
+            Icon(
+                ClipIcon,
+                contentDescription = null,
+                tint = colors.onPrimaryContainer
+            )
+        }
+        ToolbarToggle(
+            on = false,
+            label = "Draw",
+            onClick = { formatOpen = false; drawingFor = 0L }) {
+            Icon(
+                PenIcon,
+                contentDescription = null,
+                tint = colors.onPrimaryContainer
+            )
+        }
+            }
+            if (imeVisible) {
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+                    floatingActionButton = {
+                        FloatingToolbarDefaults.VibrantFloatingActionButton(
+                            onClick = {
+                                formatOpen = false
+                                focusManager.clearFocus()
+                                keyboard?.hide()
+                            },
                         ) {
-                            Icon(
-                                ListIcon, contentDescription = null,
-                                tint = if (activeBlock is NoteBlock.Check) colors.onPrimary else colors.onPrimaryContainer,
-                            )
-                        }
-                        ToolbarToggle(
-                            on = false,
-                            label = "Insert table",
-                            onClick = { formatOpen = false; sheet = EditorSheet.Table }) {
-                            Icon(
-                                TableIcon,
-                                contentDescription = null,
-                                tint = colors.onPrimaryContainer
-                            )
-                        }
-                        ToolbarToggle(
-                            on = false,
-                            label = "Add to note",
-                            onClick = { formatOpen = false; sheet = EditorSheet.Attach }) {
-                            Icon(
-                                ClipIcon,
-                                contentDescription = null,
-                                tint = colors.onPrimaryContainer
-                            )
-                        }
-                        ToolbarToggle(
-                            on = false,
-                            label = "Draw",
-                            onClick = { formatOpen = false; drawingFor = 0L }) {
-                            Icon(
-                                PenIcon,
-                                contentDescription = null,
-                                tint = colors.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-                // .ffab: with the keyboard open, a check closes it
-                AnimatedVisibility(visible = imeVisible, enter = fadeIn(), exit = fadeOut()) {
-                    Surface(
-                        onClick = {
-                            formatOpen = false
-                            focusManager.clearFocus()
-                            keyboard?.hide()
-                        },
-                        modifier = Modifier.size(64.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        color = colors.primary,
-                        contentColor = colors.onPrimary,
-                        shadowElevation = 4.dp,
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 CheckStrokeIcon,
                                 contentDescription = "Done",
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(24.dp),
                             )
                         }
-                    }
-                }
+                    },
+                    content = toolbarItems,
+                )
+            } else {
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+                    content = toolbarItems,
+                )
             }
+        }
+
+        // The ⋮ menu dims the page (.dim, 18%); the popup is its own window so taps still reach it.
+        if (menuOpen) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
         }
 
         // ── Drawing, full screen on top ──────────────────────────────────────
@@ -1014,7 +1053,7 @@ private fun CheckRow(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
@@ -1176,6 +1215,7 @@ private fun ImageBlock(uri: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(top = 4.dp)
             .height(200.dp)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainer),

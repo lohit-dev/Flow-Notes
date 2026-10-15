@@ -39,12 +39,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -109,7 +107,7 @@ enum class SortOrder(val label: String) { NewestFirst("Newest first"), OldestFir
 enum class NewNoteStart(val label: String) { Title("Title"), Body("Body"), Checklist("Checklist") }
 
 /** Which bottom sheet is open. */
-enum class SettingsSheet { None, Sort, StartWith }
+enum class SettingsSheet { None, Sort, StartWith, Rate }
 
 const val TextSizeMin = 14
 const val TextSizeMax = 24
@@ -171,6 +169,11 @@ fun SettingsScreen(
             onDismiss = onCloseSheet,
         )
 
+        SettingsSheet.Rate -> RateSheet(
+            onSubmit = { onRateApp() },
+            onDismiss = onCloseSheet,
+        )
+
         SettingsSheet.None -> Unit
     }
 
@@ -204,8 +207,9 @@ fun SettingsScreen(
                     options = modes.map { it.label },
                     selectedIndex = modes.indexOf(state.appearance),
                     onSelect = { onAppearanceChange(modes[it]) },
+                    showCheck = true,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(14.dp))
                 SettingsGroup(
                     { shapes ->
                         SwitchRow(
@@ -269,7 +273,7 @@ fun SettingsScreen(
                 SettingsGroup(
                     { shapes -> ValueRow("Version", state.versionLabel, shapes) },
                     { shapes -> NavRow("Privacy policy", null, onOpenPrivacy, shapes) },
-                    { shapes -> NavRow("Rate the app", null, onRateApp, shapes) },
+                    { shapes -> NavRow("Rate the app", null, { onOpenSheet(SettingsSheet.Rate) }, shapes) },
                 )
             }
         }
@@ -350,7 +354,7 @@ private fun NavRow(
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron),
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(width = 8.dp, height = 14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -399,6 +403,15 @@ private fun SwitchRow(
                         )
                     }
                 } else null,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                    checkedIconColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outlineVariant,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    uncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
             )
         },
         colors = rowColors(),
@@ -419,7 +432,7 @@ private fun AccentRow(
     ListItem(
         shapes = shapes,
         colors = rowColors(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 14.dp),
+        contentPadding = RowPadding,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             RowLabel("Accent color")
@@ -476,11 +489,11 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
     ListItem(
         shapes = shapes,
         colors = rowColors(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 14.dp),
+        contentPadding = RowPadding,
     ) {
         Column {
             RowLabel("Text size")
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(16.dp))
             TextSizeSlider(
                 fraction = (clamped - TextSizeMin) / range,
                 onFractionChange = { fraction ->
@@ -489,7 +502,7 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
             )
             Text(
                 text = "The quick brown fox jumps over the lazy dog.",
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 10.dp),
                 style = screenType(
                     clamped.toFloat(),
                     FontWeight.Normal,
@@ -506,9 +519,8 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
 private fun TextSizeSlider(fraction: Float, onFractionChange: (Float) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val primary = colors.primary
-    var pressed by remember { mutableStateOf(false) }
     val currentOnChange by rememberUpdatedState(onFractionChange)
-    val handleWidth by animateDpAsState(if (pressed) 2.dp else 4.dp, label = "handle")
+    val handleWidth = 4.dp
 
     BoxWithConstraints(
         modifier = Modifier
@@ -525,7 +537,6 @@ private fun TextSizeSlider(fraction: Float, onFractionChange: (Float) -> Unit) {
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    pressed = true
                     down.consume()
                     currentOnChange((down.position.x / size.width).coerceIn(0f, 1f))
                     do {
@@ -537,7 +548,6 @@ private fun TextSizeSlider(fraction: Float, onFractionChange: (Float) -> Unit) {
                             }
                         }
                     } while (event.changes.any { it.pressed })
-                    pressed = false
                 }
             },
     ) {
@@ -560,7 +570,7 @@ private fun TextSizeSlider(fraction: Float, onFractionChange: (Float) -> Unit) {
             Text(
                 text = "A",
                 modifier = Modifier.padding(start = 12.dp),
-                style = screenType(14f, FontWeight.Black, lineHeight = 18f),
+                style = screenType(16f, FontWeight.Black, lineHeight = 20f),
                 color = colors.onPrimary,
                 maxLines = 1,
                 softWrap = false,
@@ -608,6 +618,9 @@ private fun ChoiceSheet(
     title: String,
     onCancel: () -> Unit,
     onDone: () -> Unit,
+    cancelLabel: String = "Cancel",
+    doneLabel: String = "Done",
+    doneEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -625,7 +638,7 @@ private fun ChoiceSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 14.dp, bottom = 12.dp)
+                    .padding(top = 14.dp, bottom = 14.dp)
                     .size(width = 32.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(colors.outlineVariant),
@@ -658,23 +671,23 @@ private fun ChoiceSheet(
                     shapes = ButtonDefaults.shapes(),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = colors.secondaryContainer,
-                        contentColor = colors.onSecondaryContainer,
+                        contentColor = colors.onSurface,
                     ),
                     contentPadding = PaddingValues(horizontal = 24.dp),
                 ) {
-                    Text("Cancel", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
+                    Text(cancelLabel, style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
                 }
                 Button(
                     onClick = { closeThen(onDone) },
+                    enabled = doneEnabled,
                     modifier = Modifier.height(48.dp),
                     shapes = ButtonDefaults.shapes(),
                     contentPadding = PaddingValues(horizontal = 24.dp),
                 ) {
-                    Text("Done", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
+                    Text(doneLabel, style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
                 }
             }
         }
-    
     }
 }
 
@@ -728,7 +741,8 @@ internal fun SortSheet(
             options = orders.map { it.label },
             selectedIndex = orders.indexOf(pickedOrder),
             onSelect = { pickedOrder = orders[it] },
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp),
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp),
+            showCheck = true,
         )
     }
 }
@@ -757,6 +771,90 @@ private fun StartWithSheet(
                     selected = option == picked,
                     onClick = { picked = option },
                 )
+            }
+        }
+    }
+}
+
+/** Rate sheet: app icon, five stars, Not now / Submit. */
+@Composable
+internal fun RateSheet(
+    onSubmit: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    var rating by remember { mutableStateOf(0) }
+
+    ChoiceSheet(
+        title = "Rate Flow Notes",
+        onCancel = onDismiss,
+        onDone = {
+            onSubmit(rating)
+            onDismiss()
+        },
+        cancelLabel = "Not now",
+        doneLabel = "Submit",
+        doneEnabled = rating > 0,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(colors.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_note),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = colors.onPrimary,
+                )
+            }
+            Text(
+                text = "Enjoying Flow Notes?",
+                modifier = Modifier.padding(top = 12.dp),
+                style = screenType(16f, FontWeight.Medium, lineHeight = 22f),
+                color = colors.onSurface,
+            )
+            Text(
+                text = "Tap a star to rate it.",
+                modifier = Modifier.padding(top = 2.dp),
+                style = screenType(14f, FontWeight.Normal, lineHeight = 18f),
+                color = colors.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for (star in 1..5) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .semantics { contentDescription = "$star of 5 stars" }
+                            .selectable(
+                                selected = star == rating,
+                                role = Role.RadioButton,
+                                onClick = { rating = star },
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_star),
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = if (star <= rating) colors.primary else colors.outlineVariant,
+                        )
+                    }
+                }
             }
         }
     }

@@ -3,6 +3,7 @@
 package com.king_grey.notes_app.ui.screens.folders
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -190,7 +191,8 @@ fun FolderDetailScreen(
                 },
             )
         },
-        floatingActionButton = { ComposeFab(onNewNote) },
+        // The empty folder has no FAB: its own New note button is the action.
+        floatingActionButton = { if (state.notes.isNotEmpty()) ComposeFab(onNewNote) },
     ) { padding ->
         if (state.notes.isEmpty()) {
             Box(
@@ -508,13 +510,14 @@ internal fun EmptyBlock(
                     .align(Alignment.TopEnd)
                     .offset(x = 4.dp, y = (-2).dp)
                     .clip(accent)
-                    .background(colors.tertiaryContainer),
+                    .background(colors.tertiaryContainer)
+                    .border(3.dp, colors.background, accent),
             )
         }
         Spacer(Modifier.height(if (compact) 16.dp else 22.dp))
         Text(
             text = title,
-            style = screenType(if (compact) 22f else 26f, FontWeight.Black, lineHeight = if (compact) 25f else 29f, letterSpacing = -0.5f),
+            style = screenType(26f, FontWeight.Black, lineHeight = 29f, letterSpacing = -0.5f),
             color = colors.onSurface,
             textAlign = TextAlign.Center,
         )
@@ -523,7 +526,7 @@ internal fun EmptyBlock(
             modifier = Modifier
                 .padding(top = 8.dp)
                 .widthIn(max = 270.dp),
-            style = screenType(if (compact) 14f else 15f, FontWeight.Normal, lineHeight = if (compact) 20f else 22f),
+            style = screenType(15f, FontWeight.Normal, lineHeight = 22f),
             color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )

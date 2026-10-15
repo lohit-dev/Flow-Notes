@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -69,6 +70,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.toShape
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -210,6 +215,8 @@ fun NotesScreen(
     var selected by rememberSaveable { mutableStateOf<Set<Long>>(emptySet()) }
     var sheet by rememberSaveable { mutableStateOf(NotesSheet.None) }
     var prompt by rememberSaveable { mutableStateOf(NamePrompt.None) }
+    // A swipe-right opened the move sheet: cancelling it should also leave select mode.
+    var moveFromSwipe by rememberSaveable { mutableStateOf(false) }
 
     // The selection can only hold notes that still exist.
     LaunchedEffect(allNotes) {
@@ -270,8 +277,13 @@ fun NotesScreen(
                 .map { it.folderId }
                 .distinct()
                 .singleOrNull(),
-            onCancel = { sheet = NotesSheet.None },
+            onCancel = {
+                sheet = NotesSheet.None
+                if (moveFromSwipe) exitSelect()
+                moveFromSwipe = false
+            },
             onMove = { folderId ->
+                moveFromSwipe = false
                 sheet = NotesSheet.None
                 onMoveNotes(selected.toList(), folderId)
                 exitSelect()
@@ -314,13 +326,25 @@ fun NotesScreen(
                 SelectBar(
                     count = selected.size,
                     onClose = ::exitSelect,
-                    onSelectAll = { selected = allNotes.map { it.id }.toSet() },
+                    onSelectAll = {
+                        val all = allNotes.map { it.id }.toSet()
+                        selected = if (selected.containsAll(all)) emptySet() else all
+                    },
                     modifier = Modifier.statusBarsPadding(),
                 )
             }
         },
         floatingActionButton = {
-            if (!selecting) NewFab(open = fabOpen, onClick = { fabOpen = !fabOpen })
+            // The empty screen in the mockup has no FAB: its own "New note" button is the action.
+            if (!selecting && !(allNotes.isEmpty() && state.folders.isEmpty())) {
+                NewFabMenu(
+                    open = fabOpen,
+                    onOpenChange = { fabOpen = it },
+                    onNewFolder = { prompt = NamePrompt.NewFolder },
+                    onNewChecklist = onNewChecklist,
+                    onNewNote = onNewNote,
+                )
+            }
         },
         bottomBar = {
             AnimatedVisibility(
@@ -399,6 +423,7 @@ fun NotesScreen(
                     onLongPress = { if (!selecting) startSelect(it.id) },
                     onSwipeMove = {
                         startSelect(it.id)
+                        moveFromSwipe = true
                         sheet = NotesSheet.Move
                     },
                     onSwipeDelete = { delete(listOf(it.id)) },
@@ -432,31 +457,6 @@ fun NotesScreen(
                             onClickLabel = "Close menu",
                         ) { fabOpen = false },
                 )
-            }
-            AnimatedVisibility(
-                visible = fabOpen,
-                modifier = Modifier.align(Alignment.BottomEnd),
-                enter = fadeIn(tween(150)) + slideInVertically(tween(180)) { it / 4 },
-                exit = fadeOut(tween(120)),
-            ) {
-                Column(
-                    modifier = Modifier.padding(end = 16.dp, bottom = padding.calculateBottomPadding() + 96.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    NewMenuItem("New folder", FolderPlusIcon) {
-                        fabOpen = false
-                        prompt = NamePrompt.NewFolder
-                    }
-                    NewMenuItem("New checklist", ListIcon) {
-                        fabOpen = false
-                        onNewChecklist()
-                    }
-                    NewMenuItem("New note", ComposeIcon) {
-                        fabOpen = false
-                        onNewNote()
-                    }
-                }
             }
         }
     }
@@ -510,6 +510,7 @@ private fun NotesHeader(
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.width(236.dp),
                     shape = RoundedCornerShape(20.dp),
                     containerColor = colors.surfaceContainerHigh,
                 ) {
@@ -746,10 +747,7 @@ internal fun highlighted(text: String, query: String) = buildAnnotatedString {
         if (hit < 0) break
         append(text.substring(from, hit))
         withStyle(
-            SpanStyle(
-                background = colors.tertiaryContainer,
-                color = colors.onTertiaryContainer,
-            ),
+            SpanStyle(background = colors.primary.copy(alpha = 0.3f)),
         ) { append(text.substring(hit, hit + needle.length)) }
         from = hit + needle.length
     }
@@ -768,11 +766,11 @@ internal fun FolderTag(name: String, color: FolderColor) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(FolderIcon, contentDescription = null, modifier = Modifier.size(14.dp), tint = resolve(color))
+        Icon(FolderIcon, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.onSurface)
         Text(
             text = name,
             style = screenType(12f, FontWeight.Normal, lineHeight = 16f),
-            color = colors.onSecondaryContainer,
+            color = colors.onSurface,
             maxLines = 1,
         )
     }
@@ -892,11 +890,10 @@ private fun NoteCard(
     val colors = MaterialTheme.colorScheme
     val container = when {
         selected -> colors.primaryContainer
-        note.pinned -> colors.primaryContainer
         else -> colors.surfaceContainer
     }
-    val content = if (selected || note.pinned) colors.onPrimaryContainer else colors.onSurface
-    val muted = if (selected || note.pinned) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.onSurfaceVariant
+    val content = if (selected) colors.onPrimaryContainer else colors.onSurface
+    val muted = if (selected) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -956,51 +953,67 @@ private fun NoteCard(
 // FAB and the New menu
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** .fab: 80dp compose button. While the menu is open it becomes a 56dp primary circle with an X. */
+/**
+ * The mockup's FAB and New menu, built from the Material 3 Expressive FAB menu: an 80dp compose
+ * button that turns into a 56dp primary circle with an X, and three primary-container items
+ * (folder, checklist, note) stacked above it. The dim layer is drawn by the screen.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NewFab(open: Boolean, onClick: () -> Unit) {
+private fun NewFabMenu(
+    open: Boolean,
+    onOpenChange: (Boolean) -> Unit,
+    onNewFolder: () -> Unit,
+    onNewChecklist: () -> Unit,
+    onNewNote: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
-    if (open) {
-        FloatingActionButton(
-            onClick = onClick,
-            modifier = Modifier
-                .padding(end = 12.dp, bottom = 12.dp)
-                .size(56.dp),
-            shape = CircleShape,
-            containerColor = colors.primary,
-            contentColor = colors.onPrimary,
-        ) { Icon(CloseIcon, contentDescription = "Close menu", modifier = Modifier.size(24.dp)) }
-    } else {
-        FloatingActionButton(
-            onClick = onClick,
-            modifier = Modifier.size(80.dp),
-            shape = RoundedCornerShape(26.dp),
-            containerColor = colors.primaryContainer,
-            contentColor = colors.onPrimaryContainer,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp),
-        ) { Icon(ComposeIcon, contentDescription = "New", modifier = Modifier.size(30.dp)) }
-    }
-}
-
-/** .fi: a 56dp pill in primary container with an icon and a label. */
-@Composable
-private fun NewMenuItem(label: String, icon: ImageVector, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(colors.primaryContainer)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(start = 16.dp, end = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    FloatingActionButtonMenu(
+        expanded = open,
+        button = {
+            ToggleFloatingActionButton(
+                checked = open,
+                onCheckedChange = onOpenChange,
+                containerColor = ToggleFloatingActionButtonDefaults.containerColor(
+                    initialColor = colors.primaryContainer,
+                    finalColor = colors.primary,
+                ),
+                containerSize = ToggleFloatingActionButtonDefaults.containerSize(
+                    initialSize = 80.dp,
+                    finalSize = 56.dp,
+                ),
+                containerCornerRadius = ToggleFloatingActionButtonDefaults.containerCornerRadius(
+                    initialSize = 26.dp,
+                    finalSize = 28.dp,
+                ),
+            ) {
+                val tint = ToggleFloatingActionButtonDefaults.iconColor(
+                    initialColor = colors.onPrimaryContainer,
+                    finalColor = colors.onPrimary,
+                )(checkedProgress)
+                Icon(
+                    imageVector = if (checkedProgress > 0.5f) CloseIcon else ComposeIcon,
+                    contentDescription = if (open) "Close menu" else "New",
+                    modifier = Modifier.size(if (checkedProgress > 0.5f) 24.dp else 30.dp),
+                    tint = tint,
+                )
+            }
+        },
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onPrimaryContainer)
-        Text(
-            text = label,
-            style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f),
-            color = colors.onPrimaryContainer,
+        FloatingActionButtonMenuItem(
+            onClick = { onOpenChange(false); onNewFolder() },
+            icon = { Icon(FolderPlusIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
+            text = { Text("New folder", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
+        )
+        FloatingActionButtonMenuItem(
+            onClick = { onOpenChange(false); onNewChecklist() },
+            icon = { Icon(ListIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
+            text = { Text("New checklist", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
+        )
+        FloatingActionButtonMenuItem(
+            onClick = { onOpenChange(false); onNewNote() },
+            icon = { Icon(ComposeIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
+            text = { Text("New note", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
         )
     }
 }

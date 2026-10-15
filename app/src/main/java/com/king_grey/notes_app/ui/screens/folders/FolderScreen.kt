@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -94,7 +96,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
-import com.king_grey.notes_app.ui.screens.shared.Pebble
 import com.king_grey.notes_app.ui.screens.shared.screenType
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 
@@ -285,9 +286,10 @@ fun FoldersScreen(
             )
         },
         floatingActionButton = {
-            // .fab: 80dp, 26dp corners, primaryContainer. Hidden while editing.
+            // .fab: 80dp, 26dp corners, primaryContainer. Hidden while editing and in the
+            // empty state (the empty state has its own New folder button).
             AnimatedVisibility(
-                visible = !editing,
+                visible = !editing && state.folders.isNotEmpty(),
                 enter = scaleIn(tween(200)) + fadeIn(tween(200)),
                 exit = scaleOut(tween(150)) + fadeOut(tween(150)),
             ) {
@@ -721,7 +723,8 @@ private fun EmptyFolders(onNewFolder: () -> Unit, modifier: Modifier = Modifier)
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp)
                     .clip(MaterialShapes.Sunny.toShape())
-                    .background(colors.tertiaryContainer),
+                    .background(colors.tertiaryContainer)
+                    .border(3.dp, colors.background, MaterialShapes.Sunny.toShape()),
             )
         }
         Text(
@@ -781,37 +784,26 @@ internal fun DialogFrame(
             shape = RoundedCornerShape(28.dp),
             color = colors.surfaceContainerHigh,
             tonalElevation = 0.dp,
+            shadowElevation = 6.dp,
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // .di: 84dp organic blob (the mockup's elliptical corners, as a Material shape)
-                Box(
-                    modifier = Modifier
-                        .size(84.dp)
-                        .clip(MaterialShapes.Pebble.toShape())
-                        .background(if (isError) colors.errorContainer else colors.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp),
-                        tint = if (isError) colors.error else colors.primary,
-                    )
-                }
+                // .di: a plain 24dp icon in primary (or error), centered
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = if (isError) colors.error else colors.primary,
+                )
+                // h3: 24sp / 600, margin 16 top, 20 bottom
                 Text(
                     text = title,
                     modifier = Modifier
-                        .padding(top = 18.dp, bottom = 14.dp)
+                        .padding(top = 16.dp, bottom = 20.dp)
                         .semantics { heading() },
-                    style = screenType(
-                        24f,
-                        FontWeight.ExtraBold,
-                        lineHeight = 27f,
-                        letterSpacing = -0.5f
-                    ),
+                    style = screenType(24f, FontWeight.SemiBold, lineHeight = 32f),
                     color = colors.onSurface,
                     textAlign = TextAlign.Center,
                 )
@@ -885,7 +877,7 @@ internal fun FolderNameDialog(
             label = { Text("Name") },
             singleLine = true,
             isError = duplicate,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(4.dp),
             supportingText = if (duplicate) {
                 { Text("A folder with this name already exists") }
             } else null,
@@ -900,25 +892,24 @@ internal fun FolderNameDialog(
             text = "${name.length} / $FolderNameMax",
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 18.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 6.dp),
             style = screenType(12f, FontWeight.Normal, lineHeight = 16f, tabular = true),
             color = colors.onSurfaceVariant,
             textAlign = TextAlign.End,
         )
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            DialogButton(
-                confirmLabel,
-                onClick = submit,
-                container = colors.primary,
-                content = colors.onPrimary,
-                enabled = valid
-            )
-            DialogButton(
-                "Cancel",
-                onClick = onDismiss,
-                container = colors.secondaryContainer,
-                content = colors.onSecondaryContainer
-            )
+        // .da: text buttons, end aligned, 8dp apart, 20dp below the counter
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        ) {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
+            }
+            TextButton(onClick = { submit() }, enabled = valid) {
+                Text(confirmLabel, style = screenType(14f, FontWeight.Bold, lineHeight = 20f))
+            }
         }
     }
 }

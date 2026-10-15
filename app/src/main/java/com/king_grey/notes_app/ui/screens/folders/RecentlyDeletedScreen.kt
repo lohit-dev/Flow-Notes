@@ -1,5 +1,6 @@
 package com.king_grey.notes_app.ui.screens.folders
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -120,13 +121,18 @@ fun RecentlyDeletedScreen(
     LaunchedEffect(notes) {
         val ids = notes.map { it.id }.toSet()
         if (!ids.containsAll(selected)) selected = selected.intersect(ids)
-        if (notes.isEmpty()) selecting = false
+        if (notes.isEmpty()) {
+            selecting = false
+            selected = emptySet()
+        }
     }
 
     fun exitSelect() {
         selecting = false
         selected = emptySet()
     }
+
+    BackHandler(enabled = selecting) { exitSelect() }
 
     when (dialog) {
         DeletedDialog.EmptyAll -> ConfirmForeverDialog(
@@ -177,16 +183,16 @@ fun RecentlyDeletedScreen(
                             onClick = { selected = notes.map { it.id }.toSet() },
                             modifier = Modifier.size(48.dp),
                         ) { Icon(SelectAllIcon, contentDescription = "Select all") }
-                    } else if (notes.isNotEmpty()) {
+                    } else {
                         Box {
                             IconButton(
-                                onClick = { menuOpen = true },
+                                onClick = { if (notes.isNotEmpty()) menuOpen = true },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(MoreIcon, contentDescription = "More options")
                             }
                             DropdownMenu(
-                                expanded = menuOpen,
+                                expanded = menuOpen && notes.isNotEmpty(),
                                 onDismissRequest = { menuOpen = false },
                                 shape = RoundedCornerShape(20.dp),
                                 containerColor = colors.surfaceContainerHigh,
@@ -381,7 +387,7 @@ internal fun InfoBanner(text: String, modifier: Modifier = Modifier) {
         )
         Text(
             text = text,
-            style = screenType(14f, FontWeight.Normal, lineHeight = 20f),
+            style = screenType(14f, FontWeight.Normal, lineHeight = 17f),
             color = colors.onSecondaryContainer,
         )
     }
