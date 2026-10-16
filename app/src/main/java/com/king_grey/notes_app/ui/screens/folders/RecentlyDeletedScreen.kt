@@ -45,12 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Matrix
-import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.heading
@@ -58,11 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.Morph
-import androidx.graphics.shapes.toPath
 import com.king_grey.notes_app.ui.screens.notes.NoteBlock
 import com.king_grey.notes_app.ui.screens.notes.ReadOnlyBlocks
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
@@ -349,27 +341,6 @@ private fun DeletedRow(
             bottom = 14.dp,
         ),
     ) { RowName(note.title) }
-}
-
-@Composable
-private fun Morph.toShape(progress: Float): Shape {
-    return remember(this, progress) {
-        object : Shape {
-            private val matrix = Matrix()
-            override fun createOutline(
-                size: Size,
-                layoutDirection: LayoutDirection,
-                density: Density
-            ): Outline {
-                matrix.reset()
-                matrix.scale(size.width / 2f, size.height / 2f)
-                matrix.translate(1f, 1f)
-                val path = toPath(progress = progress).asComposePath()
-                path.transform(matrix)
-                return Outline.Generic(path)
-            }
-        }
-    }
 }
 
 /** .sk: the 24dp selection circle. */
