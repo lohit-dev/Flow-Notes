@@ -359,7 +359,6 @@ private fun DeletedRow(
     ) { RowName(note.title) }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Morph.toShape(progress: Float): Shape {
     return remember(this, progress) {

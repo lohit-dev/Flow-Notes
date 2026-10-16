@@ -15,7 +15,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,13 +73,13 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -214,9 +213,7 @@ internal const val DrawingAspect = 320f / 380f
  * NoteLock.kt. [onDelete] means "move to Recently deleted" and the host should pop back.
  */
 @OptIn(
-    ExperimentalMaterial3Api::class,
     ExperimentalLayoutApi::class,
-    ExperimentalMaterial3ExpressiveApi::class
 )
 @Composable
 fun NoteEditorScreen(
@@ -247,7 +244,7 @@ fun NoteEditorScreen(
     var dialog by rememberSaveable { mutableStateOf(EditorDialog.None) }
 
     /** -1 = no drawing open, 0 = a new drawing, otherwise the id of the block being edited. */
-    var drawingFor by rememberSaveable { mutableStateOf(-1L) }
+    var drawingFor by rememberSaveable { mutableLongStateOf(-1L) }
 
     // The text block the toolbar acts on, and where its selection is.
     var activeId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -283,16 +280,15 @@ fun NoteEditorScreen(
     fun insertBlock(block: NoteBlock) {
         val list = currentBlocks.toMutableList()
         val at = list.indexOfFirst { it.id == activeId }.let { if (it < 0) list.size else it + 1 }
-        val placed = block
         // an empty paragraph the cursor sits in is replaced rather than left behind
         val before = list.getOrNull(at - 1)
         if (before is NoteBlock.Text && before.text.isEmpty() && at - 1 == list.lastIndex && list.size > 1) {
             list.removeAt(at - 1)
-            list.add(at - 1, placed)
+            list.add(at - 1, block)
         } else {
-            list.add(at, placed)
+            list.add(at, block)
         }
-        val position = list.indexOfFirst { it.id == placed.id }
+        val position = list.indexOfFirst { it.id == block.id }
         if (position == list.lastIndex || list[position + 1] !is NoteBlock.Text && list[position + 1] !is NoteBlock.Check) {
             val spare = NoteBlock.Text(list.nextId())
             list.add(position + 1, spare)
@@ -405,26 +401,25 @@ fun NoteEditorScreen(
     }
 
     fun toggleChecklist() {
-        val block = activeBlock
-        when (block) {
+        when (activeBlock) {
             is NoteBlock.Check -> update(
                 currentBlocks.map {
-                    if (it.id == block.id) NoteBlock.Text(
-                        block.id,
-                        block.text,
+                    if (it.id == activeBlock.id) NoteBlock.Text(
+                        activeBlock.id,
+                        activeBlock.text,
                         ParagraphStyle.Body,
-                        block.spans
+                        activeBlock.spans
                     ) else it
                 },
             )
 
             is NoteBlock.Text -> update(
                 currentBlocks.map {
-                    if (it.id == block.id) NoteBlock.Check(
-                        block.id,
-                        block.text,
+                    if (it.id == activeBlock.id) NoteBlock.Check(
+                        activeBlock.id,
+                        activeBlock.text,
                         false,
-                        block.spans
+                        activeBlock.spans
                     ) else it
                 },
             )
@@ -990,8 +985,7 @@ private fun TextBlockField(
     val transformation = remember(spans) { spanTransformation(spans) }
 
     LaunchedEffect(focusTarget) {
-        val target = focusTarget
-        if (target != null && target.id == blockId) {
+        focusTarget?.takeIf { it.id == blockId }?.let { target ->
             withFrameNanos { }
             runCatching { requester.requestFocus() }
             value = value.copy(selection = TextRange(target.cursor.coerceIn(0, value.text.length)))
@@ -1216,7 +1210,6 @@ private fun TitleField(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Tap does [onClick]; long press offers Remove. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BlockFrame(
     onDelete: () -> Unit,
@@ -1412,24 +1405,24 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStrokes(
     strokes: List<DrawingStroke>,
     ink: Color
 ) {
-    for (stroke in strokes) {
-        if (stroke.xs.isEmpty()) continue
-        val color = if (stroke.color == 0L) ink else Color(stroke.color.toInt())
-        val width = stroke.width / 320f * size.width * (if (stroke.highlighter) 2.4f else 1f)
-        val tint = if (stroke.highlighter) color.copy(alpha = 0.35f) else color
-        if (stroke.xs.size == 1) {
+    for ((xs, ys, color1, width1, highlighter) in strokes) {
+        if (xs.isEmpty()) continue
+        val color = if (color1 == 0L) ink else Color(color1.toInt())
+        val width = width1 / 320f * size.width * (if (highlighter) 2.4f else 1f)
+        val tint = if (highlighter) color.copy(alpha = 0.35f) else color
+        if (xs.size == 1) {
             drawCircle(
                 tint,
                 radius = width / 2f,
-                center = Offset(stroke.xs[0] * size.width, stroke.ys[0] * size.height)
+                center = Offset(xs[0] * size.width, ys[0] * size.height)
             )
             continue
         }
         val path = Path().apply {
-            moveTo(stroke.xs[0] * size.width, stroke.ys[0] * size.height)
-            for (i in 1 until stroke.xs.size) lineTo(
-                stroke.xs[i] * size.width,
-                stroke.ys[i] * size.height
+            moveTo(xs[0] * size.width, ys[0] * size.height)
+            for (i in 1 until xs.size) lineTo(
+                xs[i] * size.width,
+                ys[i] * size.height
             )
         }
         drawPath(
@@ -1635,7 +1628,7 @@ private fun AttachSheet(onPick: (AttachKind?) -> Unit, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden),
         containerColor = colors.surfaceContainerLow,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = { SheetHandle() },
@@ -1709,7 +1702,7 @@ private fun AttachSheet(onPick: (AttachKind?) -> Unit, onDismiss: () -> Unit) {
 @Composable
 private fun TableSheet(onInsert: (rows: Int, cols: Int) -> Unit, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val scope = rememberCoroutineScope()
     var rows by rememberSaveable { mutableIntStateOf(3) }
     var cols by rememberSaveable { mutableIntStateOf(3) }

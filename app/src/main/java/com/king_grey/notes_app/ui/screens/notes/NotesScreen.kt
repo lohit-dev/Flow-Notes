@@ -1,18 +1,14 @@
 package com.king_grey.notes_app.ui.screens.notes
 
-import com.king_grey.notes_app.ui.theme.pressScale
-import com.king_grey.notes_app.ui.theme.FlowMotion
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.scaleIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -52,8 +48,8 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,21 +60,20 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.material3.toShape
-import androidx.compose.material3.FloatingActionButtonMenu
-import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults
+import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -106,8 +101,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.king_grey.notes_app.ui.screens.folders.ComposeIcon
 import com.king_grey.notes_app.ui.screens.folders.CloseIcon
+import com.king_grey.notes_app.ui.screens.folders.ComposeIcon
 import com.king_grey.notes_app.ui.screens.folders.EmptyBlock
 import com.king_grey.notes_app.ui.screens.folders.FolderColor
 import com.king_grey.notes_app.ui.screens.folders.FolderIcon
@@ -119,19 +114,19 @@ import com.king_grey.notes_app.ui.screens.folders.MenuRow
 import com.king_grey.notes_app.ui.screens.folders.MoreIcon
 import com.king_grey.notes_app.ui.screens.folders.NoteIcon
 import com.king_grey.notes_app.ui.screens.folders.PinIcon
-import com.king_grey.notes_app.ui.screens.folders.RowName
 import com.king_grey.notes_app.ui.screens.folders.RowPadding
 import com.king_grey.notes_app.ui.screens.folders.SelectAllIcon
 import com.king_grey.notes_app.ui.screens.folders.SelectDot
 import com.king_grey.notes_app.ui.screens.folders.TrashIcon
 import com.king_grey.notes_app.ui.screens.folders.resolve
-import com.king_grey.notes_app.ui.screens.folders.rowColors
 import com.king_grey.notes_app.ui.screens.folders.strokeIcon
 import com.king_grey.notes_app.ui.screens.settings.NoteSort
 import com.king_grey.notes_app.ui.screens.settings.SortOrder
 import com.king_grey.notes_app.ui.screens.settings.SortSheet
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
+import com.king_grey.notes_app.ui.theme.pressScale
 import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,7 +179,7 @@ private enum class NamePrompt { None, NewFolder, NewFolderForMove }
  * Tapping the search pill is [onOpenSearch]; the search screen itself is separate. While select
  * mode is on [onSelectionModeChange] is true so the host can hide the bottom navigation bar.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NotesScreen(
     state: NotesUiState,
@@ -347,8 +342,14 @@ fun NotesScreen(
             // The empty screen in the mockup has no FAB: its own "New note" button is the action.
             AnimatedVisibility(
                 visible = !selecting && !(allNotes.isEmpty() && state.folders.isEmpty()),
-                enter = scaleIn(FlowMotion.bouncy(), initialScale = 0.3f) + fadeIn(FlowMotion.effects()),
-                exit = scaleOut(FlowMotion.fastSpatial(), targetScale = 0.3f) + fadeOut(FlowMotion.effects()),
+                enter = scaleIn(
+                    FlowMotion.bouncy(),
+                    initialScale = 0.3f
+                ) + fadeIn(FlowMotion.effects()),
+                exit = scaleOut(
+                    FlowMotion.fastSpatial(),
+                    targetScale = 0.3f
+                ) + fadeOut(FlowMotion.effects()),
             ) {
                 NewFabMenu(
                     open = fabOpen,
@@ -367,7 +368,8 @@ fun NotesScreen(
             ) {
                 SelectToolbar(
                     enabled = selected.isNotEmpty(),
-                    allPinned = allNotes.filter { it.id in selected }.let { picked -> picked.isNotEmpty() && picked.all { it.pinned } },
+                    allPinned = allNotes.filter { it.id in selected }
+                        .let { picked -> picked.isNotEmpty() && picked.all { it.pinned } },
                     onPin = { pin ->
                         onTogglePin(selected.toList(), pin)
                         exitSelect()
@@ -406,7 +408,8 @@ fun NotesScreen(
                     Spacer(Modifier.height(top))
                     header()
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        val folderName = state.folders.firstOrNull { it.id == state.selectedFolderId }?.name
+                        val folderName =
+                            state.folders.firstOrNull { it.id == state.selectedFolderId }?.name
                         EmptyBlock(
                             art = MaterialShapes.Cookie9Sided.toShape(),
                             accent = MaterialShapes.Puffy.toShape(),
@@ -504,12 +507,21 @@ private fun NotesHeader(
                 .heightIn(min = 56.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(colors.surfaceContainerHigh)
-                .clickable(onClickLabel = "Search notes", role = Role.Button, onClick = onOpenSearch)
+                .clickable(
+                    onClickLabel = "Search notes",
+                    role = Role.Button,
+                    onClick = onOpenSearch
+                )
                 .padding(start = 18.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(SearchIcon, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onSurfaceVariant)
+            Icon(
+                SearchIcon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = colors.onSurfaceVariant
+            )
             Text(
                 text = "Search notes",
                 modifier = Modifier.weight(1f),
@@ -518,7 +530,11 @@ private fun NotesHeader(
             )
             Box {
                 IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
-                    Icon(MoreIcon, contentDescription = "More options", tint = colors.onSurfaceVariant)
+                    Icon(
+                        MoreIcon,
+                        contentDescription = "More options",
+                        tint = colors.onSurfaceVariant
+                    )
                 }
                 DropdownMenu(
                     expanded = menuOpen,
@@ -528,7 +544,12 @@ private fun NotesHeader(
                     containerColor = colors.surfaceContainerHigh,
                 ) {
                     MenuRow("Select notes", SelectAllIcon, { menuOpen = false; onSelectNotes() })
-                    MenuRow("Sort by", SortLinesIcon, { menuOpen = false; onSort() }, value = state.sort.label)
+                    MenuRow(
+                        "Sort by",
+                        SortLinesIcon,
+                        { menuOpen = false; onSort() },
+                        value = state.sort.label
+                    )
                     MenuRow(
                         label = if (grid) "List view" else "Grid view",
                         icon = if (grid) ListIcon else GridIcon,
@@ -555,7 +576,11 @@ private fun NotesHeader(
                 }
                 items(state.folders.size, key = { "chip-${state.folders[it].id}" }) { i ->
                     val folder = state.folders[i]
-                    NoteChip(folder.name, state.selectedFolderId == folder.id) { onFolderFilter(folder.id) }
+                    NoteChip(folder.name, state.selectedFolderId == folder.id) {
+                        onFolderFilter(
+                            folder.id
+                        )
+                    }
                 }
             }
         }
@@ -573,7 +598,11 @@ internal fun NoteChip(label: String, selected: Boolean, onClick: () -> Unit) {
         label = {
             Text(
                 text = label,
-                style = screenType(14f, if (selected) FontWeight.Bold else FontWeight.Medium, lineHeight = 20f),
+                style = screenType(
+                    14f,
+                    if (selected) FontWeight.Bold else FontWeight.Medium,
+                    lineHeight = 20f
+                ),
             )
         },
         leadingIcon = if (selected) {
@@ -660,16 +689,17 @@ private fun NotesList(
 }
 
 /** Lets a child use [amount] of the parent's horizontal padding on both sides. */
-private fun Modifier.bleed(amount: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, constraints ->
-    val extra = amount.roundToPx()
-    val placeable = measurable.measure(
-        constraints.copy(
-            minWidth = constraints.minWidth + extra * 2,
-            maxWidth = constraints.maxWidth + extra * 2,
-        ),
-    )
-    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
-}
+private fun Modifier.bleed(amount: androidx.compose.ui.unit.Dp): Modifier =
+    layout { measurable, constraints ->
+        val extra = amount.roundToPx()
+        val placeable = measurable.measure(
+            constraints.copy(
+                minWidth = constraints.minWidth + extra * 2,
+                maxWidth = constraints.maxWidth + extra * 2,
+            ),
+        )
+        layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
+    }
 
 /** 28dp on the outside of a group, 4dp between rows (same as the `.list` rule). */
 internal fun segmentShape(index: Int, count: Int): Shape {
@@ -684,7 +714,6 @@ internal fun segmentShape(index: Int, count: Int): Shape {
 }
 
 /** .li.ni: title, "date  preview", folder tag; a pin on the end. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun NoteRow(
     note: NoteItem,
@@ -705,12 +734,24 @@ internal fun NoteRow(
             { SelectDot(selected) }
         } else null,
         trailingContent = if (note.pinned) {
-            { Icon(PinIcon, contentDescription = "Pinned", modifier = Modifier.size(20.dp), tint = colors.primary) }
+            {
+                Icon(
+                    PinIcon,
+                    contentDescription = "Pinned",
+                    modifier = Modifier.size(20.dp),
+                    tint = colors.primary
+                )
+            }
         } else null,
         supportingContent = {
             Column(Modifier.padding(top = 4.dp)) {
                 Text(
-                    text = dateAndPreview(note.dateLabel, note.preview, colors.onSurface, highlight),
+                    text = dateAndPreview(
+                        note.dateLabel,
+                        note.preview,
+                        colors.onSurface,
+                        highlight
+                    ),
                     style = screenType(14f, FontWeight.Normal, lineHeight = 20f),
                     color = colors.onSurfaceVariant,
                     maxLines = 1,
@@ -738,11 +779,12 @@ internal fun NoteRow(
 }
 
 @Composable
-private fun dateAndPreview(date: String, preview: String, dateColor: Color, query: String) = buildAnnotatedString {
-    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = dateColor)) { append(date) }
-    append("  ")
-    append(highlighted(preview, query))
-}
+private fun dateAndPreview(date: String, preview: String, dateColor: Color, query: String) =
+    buildAnnotatedString {
+        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = dateColor)) { append(date) }
+        append("  ")
+        append(highlighted(preview, query))
+    }
 
 /**
  * .mark: every case-insensitive occurrence of [query] gets the tertiary container behind it.
@@ -781,7 +823,12 @@ internal fun FolderTag(name: String, color: FolderColor) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(FolderIcon, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.onSurface)
+        Icon(
+            FolderIcon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = resolve(color)
+        )
         Text(
             text = name,
             style = screenType(12f, FontWeight.Normal, lineHeight = 16f),
@@ -795,7 +842,6 @@ internal fun FolderTag(name: String, color: FolderColor) {
  * .swr: swipe right to move (primary container, folder-move icon), left to delete (error
  * container, trash). Move snaps back and opens the move sheet; delete lets the row go.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeNote(
     enabled: Boolean,
@@ -806,31 +852,28 @@ private fun SwipeNote(
     content: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    onMove()
-                    false
-                }
+    val state = rememberSwipeToDismissBoxState()
 
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete()
-                    true
-                }
-
-                SwipeToDismissBoxValue.Settled -> false
+    LaunchedEffect(state.currentValue) {
+        when (state.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> {
+                onMove()
+                state.snapTo(SwipeToDismissBoxValue.Settled)
             }
-        },
-    )
+            SwipeToDismissBoxValue.EndToStart -> {
+                onDelete()
+            }
+            SwipeToDismissBoxValue.Settled -> Unit
+        }
+    }
     SwipeToDismissBox(
         state = state,
         modifier = modifier.clip(shape),
         enableDismissFromStartToEnd = enabled,
         enableDismissFromEndToStart = enabled,
         backgroundContent = {
-            val moving = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            val deleting = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            val moving = state.targetValue == SwipeToDismissBoxValue.StartToEnd
+            val deleting = state.targetValue == SwipeToDismissBoxValue.EndToStart
             if (moving || deleting) {
                 Row(
                     modifier = Modifier
@@ -841,7 +884,12 @@ private fun SwipeNote(
                     horizontalArrangement = if (moving) Arrangement.Start else Arrangement.End,
                 ) {
                     val tint = if (moving) colors.onPrimaryContainer else colors.error
-                    Icon(if (moving) MoveIcon else TrashIcon, contentDescription = null, modifier = Modifier.size(22.dp), tint = tint)
+                    Icon(
+                        if (moving) MoveIcon else TrashIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = tint
+                    )
                     Spacer(Modifier.size(8.dp))
                     Text(
                         text = if (moving) "Move" else "Delete",
@@ -858,7 +906,6 @@ private fun SwipeNote(
 // Grid view (.gcols / .gc)
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotesGrid(
     notes: List<NoteItem>,
@@ -894,7 +941,6 @@ private fun NotesGrid(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NoteCard(
     note: NoteItem,
@@ -911,7 +957,8 @@ private fun NoteCard(
         label = "card-container",
     )
     val content = if (selected) colors.onPrimaryContainer else colors.onSurface
-    val muted = if (selected) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.onSurfaceVariant
+    val muted =
+        if (selected) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.onSurfaceVariant
 
     Box(
         modifier = modifier
@@ -943,7 +990,12 @@ private fun NoteCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 if (note.folderName != null && note.folderColor != null) {
-                    Box(modifier = Modifier.weight(1f, fill = false)) { FolderTag(note.folderName, note.folderColor) }
+                    Box(modifier = Modifier.weight(1f, fill = false)) {
+                        FolderTag(
+                            note.folderName,
+                            note.folderColor
+                        )
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -973,11 +1025,10 @@ private fun NoteCard(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The mockup's FAB and New menu, built from the Material 3 Expressive FAB menu: an 80dp compose
+ * The mockup's FAB and New menu, built from the Material 3 Expressive FAB menu: a 80dp compose
  * button that turns into a 56dp primary circle with an X, and three primary-container items
  * (folder, checklist, note) stacked above it. The dim layer is drawn by the screen.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun NewFabMenu(
     open: Boolean,
@@ -1021,18 +1072,45 @@ private fun NewFabMenu(
     ) {
         FloatingActionButtonMenuItem(
             onClick = { onOpenChange(false); onNewFolder() },
-            icon = { Icon(FolderPlusIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
-            text = { Text("New folder", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
+            icon = {
+                Icon(
+                    FolderPlusIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            },
+            text = {
+                Text(
+                    "New folder",
+                    style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)
+                )
+            },
         )
         FloatingActionButtonMenuItem(
             onClick = { onOpenChange(false); onNewChecklist() },
             icon = { Icon(ListIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
-            text = { Text("New checklist", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
+            text = {
+                Text(
+                    "New checklist",
+                    style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)
+                )
+            },
         )
         FloatingActionButtonMenuItem(
             onClick = { onOpenChange(false); onNewNote() },
-            icon = { Icon(ComposeIcon, contentDescription = null, modifier = Modifier.size(24.dp)) },
-            text = { Text("New note", style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)) },
+            icon = {
+                Icon(
+                    ComposeIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            },
+            text = {
+                Text(
+                    "New note",
+                    style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f)
+                )
+            },
         )
     }
 }
@@ -1043,7 +1121,12 @@ private fun NewFabMenu(
 
 /** .tab.sel-bar: close, "N selected", select all. */
 @Composable
-private fun SelectBar(count: Int, onClose: () -> Unit, onSelectAll: () -> Unit, modifier: Modifier = Modifier) {
+private fun SelectBar(
+    count: Int,
+    onClose: () -> Unit,
+    onSelectAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = modifier
@@ -1087,7 +1170,11 @@ private fun SelectToolbar(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(shape = RoundedCornerShape(32.dp), color = colors.primaryContainer, shadowElevation = 4.dp) {
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = colors.primaryContainer,
+            shadowElevation = 4.dp
+        ) {
             Row(
                 modifier = Modifier
                     .heightIn(min = 64.dp)
@@ -1095,7 +1182,11 @@ private fun SelectToolbar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                ToolbarButton(PinIcon, if (allPinned) "Unpin" else "Pin", enabled) { onPin(!allPinned) }
+                ToolbarButton(
+                    PinIcon,
+                    if (allPinned) "Unpin" else "Pin",
+                    enabled
+                ) { onPin(!allPinned) }
                 ToolbarButton(MoveIcon, "Move to folder", enabled, onMove)
                 ToolbarButton(ShareIcon, "Share", enabled, onShare)
             }
@@ -1138,7 +1229,10 @@ internal fun MoveSheet(
     onNewFolder: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
     val scope = rememberCoroutineScope()
     var picked by rememberSaveable { mutableStateOf(initialFolderId) }
     fun closeThen(action: () -> Unit) {
@@ -1184,7 +1278,10 @@ internal fun MoveSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp)
-                            .selectable(selected = picked == folder.id, role = Role.RadioButton) { picked = folder.id }
+                            .selectable(
+                                selected = picked == folder.id,
+                                role = Role.RadioButton
+                            ) { picked = folder.id }
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1214,7 +1311,12 @@ internal fun MoveSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Icon(FolderPlusIcon, contentDescription = null, modifier = Modifier.size(20.dp), tint = colors.primary)
+                    Icon(
+                        FolderPlusIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = colors.primary
+                    )
                     Text(
                         text = "New folder",
                         style = screenType(16f, FontWeight.SemiBold, lineHeight = 22f),
@@ -1254,7 +1356,12 @@ internal fun MoveSheet(
 // Icons (mockup symbols; shared ones come from the folders package)
 // ─────────────────────────────────────────────────────────────────────────────
 
-internal val SearchIcon by lazy { strokeIcon("Search", "M18 11a7 7 0 1 1-14 0a7 7 0 1 1 14 0zM20 20l-3.5-3.5") }
+internal val SearchIcon by lazy {
+    strokeIcon(
+        "Search",
+        "M18 11a7 7 0 1 1-14 0a7 7 0 1 1 14 0zM20 20l-3.5-3.5"
+    )
+}
 private val SortLinesIcon by lazy { strokeIcon("SortLines", "M4 7h16M7 12h10M10 17h4") }
 internal val CheckIcon by lazy { strokeIcon("Check", "m5 12.5 4.5 4.5L19 7.5") }
 private val GridIcon by lazy {
@@ -1267,10 +1374,16 @@ private val GridIcon by lazy {
     )
 }
 internal val MoveIcon by lazy {
-    strokeIcon("Move", "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 13h6M13 10.5l2.5 2.5-2.5 2.5")
+    strokeIcon(
+        "Move",
+        "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 13h6M13 10.5l2.5 2.5-2.5 2.5"
+    )
 }
 internal val ShareIcon by lazy {
-    strokeIcon("Share", "M12 15V3M8 7l4-4 4 4M6 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1")
+    strokeIcon(
+        "Share",
+        "M12 15V3M8 7l4-4 4 4M6 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1"
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1299,20 +1412,50 @@ private fun note(
 ) = NoteItem(id, title, preview, date, folder.first, folder.second, folder.third, pinned)
 
 private val PreviewSections = listOf(
-    NoteSection("Pinned", listOf(note(1, "Swift learning plan", "Yesterday", "Views, state, bindings and navigation", Learning, pinned = true))),
+    NoteSection(
+        "Pinned",
+        listOf(
+            note(
+                1,
+                "Swift learning plan",
+                "Yesterday",
+                "Views, state, bindings and navigation",
+                Learning,
+                pinned = true
+            )
+        )
+    ),
     NoteSection(
         "Today",
         listOf(
             note(2, "Grocery list", "10:42 AM", "Oat milk, bananas, spinach, rice", Personal),
-            note(3, "Sprint review notes", "8:15 AM", "Demo went well, follow up on API limits", Work),
+            note(
+                3,
+                "Sprint review notes",
+                "8:15 AM",
+                "Demo went well, follow up on API limits",
+                Work
+            ),
         ),
     ),
     NoteSection(
         "Previous 7 days",
         listOf(
             note(4, "Book ideas", "Monday", "Short stories about small towns", Ideas),
-            note(5, "Trip to Hyderabad", "Sunday", "Train at 6:10 AM, hotel near Banjara Hills", Personal),
-            note(6, "SwiftUI state cheat sheet", "Friday", "@State, @Binding, @Observable", Learning),
+            note(
+                5,
+                "Trip to Hyderabad",
+                "Sunday",
+                "Train at 6:10 AM, hotel near Banjara Hills",
+                Personal
+            ),
+            note(
+                6,
+                "SwiftUI state cheat sheet",
+                "Friday",
+                "@State, @Binding, @Observable",
+                Learning
+            ),
         ),
     ),
 )
@@ -1330,7 +1473,11 @@ private fun NotesListPreview() {
 private fun NotesGridPreview() {
     FlowNotesTheme(dynamicColor = false) {
         NotesScreen(
-            state = NotesUiState(sections = PreviewSections, folders = PreviewFolders, viewMode = NotesViewMode.Grid),
+            state = NotesUiState(
+                sections = PreviewSections,
+                folders = PreviewFolders,
+                viewMode = NotesViewMode.Grid
+            ),
         )
     }
 }

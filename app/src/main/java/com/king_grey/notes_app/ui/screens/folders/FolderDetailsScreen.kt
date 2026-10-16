@@ -1,9 +1,8 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-
 package com.king_grey.notes_app.ui.screens.folders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -42,9 +40,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -231,7 +230,10 @@ fun FolderDetailScreen(
                         dateLabel = note.dateLabel,
                         preview = note.preview,
                         pinned = note.pinned,
-                        shapes = ListItemDefaults.segmentedShapes(index = index, count = state.notes.size),
+                        shapes = ListItemDefaults.segmentedShapes(
+                            index = index,
+                            count = state.notes.size
+                        ),
                         onClick = { onOpenNote(note) },
                         modifier = Modifier.animateItem(),
                     )
@@ -283,10 +285,29 @@ internal fun MenuRow(
     val colors = MaterialTheme.colorScheme
     val tint = if (danger) colors.error else colors.onSurface
     DropdownMenuItem(
-        text = { Text(label, style = screenType(15f, FontWeight.Normal, lineHeight = 20f), color = tint) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = tint) },
+        text = {
+            Text(
+                label,
+                style = screenType(15f, FontWeight.Normal, lineHeight = 20f),
+                color = tint
+            )
+        },
+        leadingIcon = {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = tint
+            )
+        },
         trailingIcon = value?.let {
-            { Text(it, style = screenType(12f, FontWeight.Normal, lineHeight = 16f), color = colors.onSurfaceVariant) }
+            {
+                Text(
+                    it,
+                    style = screenType(12f, FontWeight.Normal, lineHeight = 16f),
+                    color = colors.onSurfaceVariant
+                )
+            }
         },
         onClick = onClick,
         modifier = Modifier.heightIn(min = 48.dp),
@@ -306,7 +327,10 @@ private fun FolderColorSheet(
     onDismiss: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
     val scope = rememberCoroutineScope()
     var picked by rememberSaveable { mutableStateOf(selected) }
     fun closeThen(action: () -> Unit) {
@@ -399,7 +423,12 @@ private fun Swatch(color: FolderColor, selected: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
-            Icon(CheckStrokeIcon, contentDescription = "Selected", modifier = Modifier.size(24.dp), tint = Color.White)
+            Icon(
+                CheckStrokeIcon,
+                contentDescription = "Selected",
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
+            )
         }
     }
 }
@@ -409,7 +438,6 @@ private fun Swatch(color: FolderColor, selected: Boolean, onClick: () -> Unit) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** .li.ni: title, then "date  preview" on one line. A pin sits at the end when pinned. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun NoteRow(
     title: String,
@@ -426,12 +454,24 @@ private fun NoteRow(
         shapes = shapes,
         modifier = modifier,
         trailingContent = if (pinned) {
-            { Icon(PinIcon, contentDescription = "Pinned", modifier = Modifier.size(20.dp), tint = colors.primary) }
+            {
+                Icon(
+                    PinIcon,
+                    contentDescription = "Pinned",
+                    modifier = Modifier.size(20.dp),
+                    tint = colors.primary
+                )
+            }
         } else null,
         supportingContent = {
             Text(
                 text = androidx.compose.ui.text.buildAnnotatedString {
-                    pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.SemiBold, color = colors.onSurface))
+                    pushStyle(
+                        androidx.compose.ui.text.SpanStyle(
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSurface
+                        )
+                    )
                     append(dateLabel)
                     pop()
                     append("  ")
@@ -502,7 +542,12 @@ internal fun EmptyBlock(
                     .background(colors.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(if (compact) 44.dp else 60.dp), tint = colors.onPrimaryContainer)
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(if (compact) 44.dp else 60.dp),
+                    tint = colors.onPrimaryContainer
+                )
             }
             Box(
                 modifier = Modifier
@@ -554,15 +599,29 @@ internal fun EmptyBlock(
 // ─────────────────────────────────────────────────────────────────────────────
 
 internal val BackIcon by lazy { strokeIcon("Back", "M19 12H5M11 6l-6 6 6 6") }
-internal val MoreIcon by lazy { dotsIcon("More", listOf(12f to 5f, 12f to 12f, 12f to 19f), r = 1.8f) }
+internal val MoreIcon by lazy {
+    dotsIcon(
+        "More",
+        listOf(12f to 5f, 12f to 12f, 12f to 19f),
+        r = 1.8f
+    )
+}
 internal val PinIcon by lazy { strokeIcon("Pin", "M9 4h6l-1 6 3 3H7l3-3zM12 13v7") }
 internal val ComposeIcon by lazy {
-    strokeIcon("Compose", "M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8 8 16l1.2-4z")
+    strokeIcon(
+        "Compose",
+        "M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8 8 16l1.2-4z"
+    )
 }
 internal val ListIcon by lazy { strokeIcon("List", "m3 6 2 2 3-3M3 14l2 2 3-3M12 7h9M12 15h9") }
 internal val SortIcon by lazy { strokeIcon("Sort", "M4 7h16M7 12h10M10 17h4") }
 internal val UndoIcon by lazy { strokeIcon("Undo", "M8 5 4 9l4 4M4 9h10a5 5 0 0 1 0 10H8") }
-internal val SelectAllIcon by lazy { strokeIcon("SelectAll", "m4 12.5 4 4L13 10M10 18l1.5 1.5L20 9") }
+internal val SelectAllIcon by lazy {
+    strokeIcon(
+        "SelectAll",
+        "m4 12.5 4 4L13 10M10 18l1.5 1.5L20 9"
+    )
+}
 internal val CloseIcon by lazy { strokeIcon("Close", "M6 6l12 12M18 6 6 18") }
 internal val CheckStrokeIcon by lazy { strokeIcon("CheckStroke", "m5 12.5 4.5 4.5L19 7.5") }
 internal val InfoIcon by lazy {
@@ -574,10 +633,26 @@ internal val InfoIcon by lazy {
 // ─────────────────────────────────────────────────────────────────────────────
 
 private val PreviewNotes = listOf(
-    FolderNote(1, "Swift learning plan", "Yesterday", "Views, state, bindings and navigation", pinned = true),
+    FolderNote(
+        1,
+        "Swift learning plan",
+        "Yesterday",
+        "Views, state, bindings and navigation",
+        pinned = true
+    ),
     FolderNote(2, "SwiftUI state cheat sheet", "Friday", "@State, @Binding, @Observable"),
-    FolderNote(3, "Kotlin coroutines basics", "10/09/2026", "Scopes, dispatchers and structured concurrency"),
-    FolderNote(4, "Compose layout notes", "02/09/2026", "Modifier order, constraints, intrinsic sizes"),
+    FolderNote(
+        3,
+        "Kotlin coroutines basics",
+        "10/09/2026",
+        "Scopes, dispatchers and structured concurrency"
+    ),
+    FolderNote(
+        4,
+        "Compose layout notes",
+        "02/09/2026",
+        "Modifier order, constraints, intrinsic sizes"
+    ),
 )
 
 @Preview(widthDp = 360, heightDp = 760, showBackground = true)

@@ -28,19 +28,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -50,18 +48,13 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
-import androidx.compose.material3.ExpandedFullScreenSearchBar
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
-import androidx.compose.material3.rememberSearchBarState
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -70,23 +63,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.king_grey.notes_app.ui.screens.folders.BackButton
 import com.king_grey.notes_app.ui.screens.folders.BackIcon
 import com.king_grey.notes_app.ui.screens.folders.CloseIcon
 import com.king_grey.notes_app.ui.screens.folders.EmptyBlock
@@ -207,81 +197,82 @@ fun SearchScreen(
         modifier = modifier,
         containerColor = colors.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { _ ->
+    ) { padding ->
         ExpandedFullScreenSearchBar(
             state = searchBarState,
             inputField = inputField,
             colors = SearchBarDefaults.colors(containerColor = colors.background),
+            modifier = Modifier.padding(padding),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-            // Folder chips filter results, so they only make sense once there is a query (as in the mockup).
-            if (state.folders.isNotEmpty() && trimmed.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item(key = "chip-all") {
-                        NoteChip("All", state.selectedFolderId == null) { onFolderFilter(null) }
-                    }
-                    items(state.folders.size, key = { "chip-${state.folders[it].id}" }) { i ->
-                        val folder = state.folders[i]
-                        NoteChip(folder.name, state.selectedFolderId == folder.id) {
-                            onFolderFilter(
-                                folder.id
-                            )
+                // Folder chips filter results, so they only make sense once there is a query (as in the mockup).
+                if (state.folders.isNotEmpty() && trimmed.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        item(key = "chip-all") {
+                            NoteChip("All", state.selectedFolderId == null) { onFolderFilter(null) }
+                        }
+                        items(state.folders.size, key = { "chip-${state.folders[it].id}" }) { i ->
+                            val folder = state.folders[i]
+                            NoteChip(folder.name, state.selectedFolderId == folder.id) {
+                                onFolderFilter(
+                                    folder.id
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            when {
-                trimmed.isEmpty() -> RecentList(
-                    recent = state.recent,
-                    onPick = { picked ->
-                        setQuery(picked)
-                        onSubmit(picked)
-                    },
-                    onFill = { setQuery(it) },
-                    onClear = onClearRecent,
-                )
+                when {
+                    trimmed.isEmpty() -> RecentList(
+                        recent = state.recent,
+                        onPick = { picked ->
+                            setQuery(picked)
+                            onSubmit(picked)
+                        },
+                        onFill = { setQuery(it) },
+                        onClear = onClearRecent,
+                    )
 
-                state.results.isEmpty() -> {
-                    val folderName =
-                        state.folders.firstOrNull { it.id == state.selectedFolderId }?.name
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        EmptyBlock(
-                            art = MaterialShapes.Puffy.toShape(),
-                            accent = MaterialShapes.Clover4Leaf.toShape(),
-                            icon = SearchXIcon,
-                            title = "No results for “$trimmed”",
-                            text = if (folderName != null) {
-                                "Nothing in $folderName matches. Try a shorter word or search every folder."
-                            } else {
-                                "Try a shorter word or check the spelling."
-                            },
-                            actionLabel = if (folderName != null) "Search all notes" else null,
-                            onAction = { onFolderFilter(null) },
-                            compact = true,
-                            modifier = Modifier.padding(bottom = 20.dp),
-                        )
+                    state.results.isEmpty() -> {
+                        val folderName =
+                            state.folders.firstOrNull { it.id == state.selectedFolderId }?.name
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            EmptyBlock(
+                                art = MaterialShapes.Puffy.toShape(),
+                                accent = MaterialShapes.Clover4Leaf.toShape(),
+                                icon = SearchXIcon,
+                                title = "No results for “$trimmed”",
+                                text = if (folderName != null) {
+                                    "Nothing in $folderName matches. Try a shorter word or search every folder."
+                                } else {
+                                    "Try a shorter word or check the spelling."
+                                },
+                                actionLabel = if (folderName != null) "Search all notes" else null,
+                                onAction = { onFolderFilter(null) },
+                                compact = true,
+                                modifier = Modifier.padding(bottom = 20.dp),
+                            )
+                        }
                     }
-                }
 
-                else -> ResultList(
-                    results = state.results,
-                    query = trimmed,
-                    onOpen = {
-                        onSubmit(trimmed)
-                        onOpenNote(it)
-                    },
-                )
-            }
+                    else -> ResultList(
+                        results = state.results,
+                        query = trimmed,
+                        onOpen = {
+                            onSubmit(trimmed)
+                            onOpenNote(it)
+                        },
+                    )
+                }
             }
         }
     }
@@ -359,7 +350,6 @@ private fun RecentList(
 }
 
 /** .qsum + .qres: "3 notes" then a segmented list with the match highlighted. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ResultList(results: List<NoteItem>, query: String, onOpen: (NoteItem) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -481,7 +471,10 @@ private fun VoiceSheet(onCancel: () -> Unit) {
 
     ModalBottomSheet(
         onDismissRequest = onCancel,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        ),
         containerColor = colors.surfaceContainerHigh,
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
         dragHandle = null,

@@ -20,19 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -63,7 +64,6 @@ private enum class Tool { Pen, Marker, Eraser }
  * Done returns every stroke; Cancel and back return nothing. The mockup's fourth tool (the sort
  * icon) has no action in the mockup either and is left out.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NoteDrawingScreen(
     initial: List<DrawingStroke>,
@@ -75,10 +75,9 @@ fun NoteDrawingScreen(
     val redoStack = remember { mutableStateListOf<DrawingStroke>() }
     var tool by remember { mutableStateOf(Tool.Pen) }
     var inkChoice by remember { mutableStateOf<Long?>(null) }
-    var width by remember { mutableStateOf(3f) }
+    var width by remember { mutableFloatStateOf(3f) }
     // The stroke being drawn right now, kept apart so only the live part redraws.
     var live by remember { mutableStateOf<DrawingStroke?>(null) }
-
     BackHandler(onBack = onCancel)
 
     // The mockup's pen colors (its folder colors), light or dark to suit the theme; 0 is ink.
@@ -274,7 +273,11 @@ fun NoteDrawingScreen(
                                     .clip(CircleShape)
                                     .background(fill)
                                     .then(
-                                        if (selected) Modifier.border(3.dp, colors.primary, CircleShape)
+                                        if (selected) Modifier.border(
+                                            3.dp,
+                                            colors.primary,
+                                            CircleShape
+                                        )
                                         else Modifier,
                                     )
                                     .clickable(enabled = tool != Tool.Eraser) { inkChoice = c },
@@ -283,14 +286,16 @@ fun NoteDrawingScreen(
                     }
                     // `width` is the single source of truth; the pen gesture re-reads it
                     // because pointerInput is keyed on it.
+
+                    val sliderState = rememberSliderState(value = width, trackRange = 1f..12f)
+                    sliderState.value = width
                     Slider(
-                        value = width,
+                        state = sliderState,
                         onValueChange = { width = it },
                         modifier = Modifier
                             .weight(1f)
                             .padding(start = 12.dp),
                         enabled = tool != Tool.Eraser,
-                        valueRange = 1f..12f,
                     )
                 }
             }

@@ -1,10 +1,6 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-
 package com.king_grey.notes_app.ui.screens.folders
 
-import com.king_grey.notes_app.ui.theme.FlowMotion
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -21,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -56,13 +53,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.height
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -84,6 +80,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -101,13 +98,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The 8 folder colors from the mockup's "Folder color" sheet (c1..c4 have a dark variant). */
+/** The 8 folder colors from the mockup's "Folder color" sheet (c1.c4 have a dark variant). */
 enum class FolderColor(val label: String, val light: Color, val dark: Color) {
     Violet("Violet", Color(0xFF5B57E8), Color(0xFFA5A2FF)),
     Green("Green", Color(0xFF2F9E4F), Color(0xFF6FD58C)),
@@ -161,7 +159,6 @@ private val EditRowPadding = PaddingValues(start = 12.dp, end = 10.dp, top = 12.
  *
  * The bottom navigation bar belongs to the host Scaffold.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FoldersScreen(
     state: FoldersUiState,
@@ -181,7 +178,7 @@ fun FoldersScreen(
 
     var editing by rememberSaveable { mutableStateOf(false) }
     var dialog by rememberSaveable { mutableStateOf(FolderDialog.None) }
-    var dialogFolderId by rememberSaveable { mutableStateOf(-1L) }
+    var dialogFolderId by rememberSaveable { mutableLongStateOf(-1L) }
     val dialogFolder = state.folders.firstOrNull { it.id == dialogFolderId }
 
     val reorder = remember(listState) { ReorderState(listState) }
@@ -294,8 +291,14 @@ fun FoldersScreen(
             // empty state (the empty state has its own New folder button).
             AnimatedVisibility(
                 visible = !editing && state.folders.isNotEmpty(),
-                enter = scaleIn(FlowMotion.bouncy(), initialScale = 0.3f) + fadeIn(FlowMotion.effects()),
-                exit = scaleOut(FlowMotion.fastSpatial(), targetScale = 0.3f) + fadeOut(FlowMotion.effects()),
+                enter = scaleIn(
+                    FlowMotion.bouncy(),
+                    initialScale = 0.3f
+                ) + fadeIn(FlowMotion.effects()),
+                exit = scaleOut(
+                    FlowMotion.fastSpatial(),
+                    targetScale = 0.3f
+                ) + fadeOut(FlowMotion.effects()),
             ) {
                 FloatingActionButton(
                     onClick = { dialog = FolderDialog.Create },
@@ -432,7 +435,7 @@ fun FoldersScreen(
             // ── Empty: no folders yet (shown under All notes) ────────────────
             if (folders.isEmpty()) {
                 item(key = "empty") {
-                    // Centre the empty state in what is left under the cards, like the mockup's .fill.
+                    // Center the empty state in what is left under the cards, like the mockup's .fill.
                     val density = LocalDensity.current
                     val remaining by remember {
                         derivedStateOf {
@@ -497,7 +500,6 @@ internal fun RowName(text: String) {
 }
 
 /** Normal mode row: lead, name, count. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FolderRow(
     name: String,
@@ -526,7 +528,6 @@ private fun FolderRow(
 }
 
 /** .li.ed.lk: All notes in edit mode. 60% opacity, a lock, lead aligned with the other rows. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LockedRow(count: Int?, shapes: ListItemShapes, modifier: Modifier = Modifier) {
     ListItem(
@@ -548,7 +549,6 @@ private fun LockedRow(count: Int?, shapes: ListItemShapes, modifier: Modifier = 
 }
 
 /** .li.ed: red minus, lead, name, pencil, drag handle. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EditFolderRow(
     folder: FolderItem,
@@ -778,7 +778,6 @@ private fun EmptyFolders(onNewFolder: () -> Unit, modifier: Modifier = Modifier)
 // Dialogs (.dlg: 28dp card, blob icon, centered title, stacked full-width buttons)
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DialogFrame(
     icon: ImageVector,

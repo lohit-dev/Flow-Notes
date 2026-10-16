@@ -1,13 +1,9 @@
 package com.king_grey.notes_app.ui.screens.settings
 
-import com.king_grey.notes_app.ui.theme.FlowMotion
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,10 +13,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -40,20 +34,21 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.Slider
-import androidx.compose.runtime.mutableFloatStateOf
-import kotlin.math.roundToInt
+import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,26 +59,22 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.king_grey.notes_app.R
 import com.king_grey.notes_app.ui.screens.shared.ConnectedToggleGroup
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Models
@@ -278,7 +269,14 @@ fun SettingsScreen(
                 SettingsGroup(
                     { shapes -> ValueRow("Version", state.versionLabel, shapes) },
                     { shapes -> NavRow("Privacy policy", null, onOpenPrivacy, shapes) },
-                    { shapes -> NavRow("Rate the app", null, { onOpenSheet(SettingsSheet.Rate) }, shapes) },
+                    { shapes ->
+                        NavRow(
+                            "Rate the app",
+                            null,
+                            { onOpenSheet(SettingsSheet.Rate) },
+                            shapes
+                        )
+                    },
                 )
             }
         }
@@ -460,7 +458,11 @@ private fun AccentRow(
 /** .ac: 40dp circle that squares off to a 14dp corner and shows a white check when selected. */
 @Composable
 private fun AccentSwatch(accent: AccentColor, selected: Boolean, onClick: () -> Unit) {
-    val corner by animateDpAsState(if (selected) 14.dp else 20.dp, FlowMotion.bouncy(), label = "accent-corner")
+    val corner by animateDpAsState(
+        if (selected) 14.dp else 20.dp,
+        FlowMotion.bouncy(),
+        label = "accent-corner"
+    )
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -496,6 +498,11 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
     val clamped = size.coerceIn(TextSizeMin, TextSizeMax)
     var dragging by remember(clamped) { mutableFloatStateOf(clamped.toFloat()) }
     val preview = dragging.roundToInt()
+    val sliderState = rememberSliderState(
+        value = dragging,
+        steps = TextSizeMax - TextSizeMin - 1,
+        trackRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
+    )
 
     ListItem(
         shapes = shapes,
@@ -525,16 +532,15 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
                     style = screenType(14f, FontWeight.Bold, lineHeight = 18f),
                     color = colors.onSurfaceVariant,
                 )
+
                 Slider(
-                    value = dragging,
+                    state = sliderState,
                     onValueChange = { dragging = it },
                     onValueChangeFinished = { onSizeChange(dragging.roundToInt()) },
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)
                         .semantics { contentDescription = "Text size" },
-                    valueRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
-                    steps = TextSizeMax - TextSizeMin - 1,
                 )
                 Text(
                     text = "A",
@@ -574,7 +580,10 @@ private fun ChoiceSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
     val scope = rememberCoroutineScope()
     fun closeThen(action: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
@@ -733,7 +742,7 @@ internal fun RateSheet(
     onDismiss: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    var rating by remember { mutableStateOf(0) }
+    var rating by remember { mutableIntStateOf(0) }
 
     ChoiceSheet(
         title = "Rate Flow Notes",
