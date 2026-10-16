@@ -693,7 +693,7 @@ internal fun NoteRow(
             { Icon(PinIcon, contentDescription = "Pinned", modifier = Modifier.size(20.dp), tint = colors.primary) }
         } else null,
         supportingContent = {
-            Column {
+            Column(Modifier.padding(top = 4.dp)) {
                 Text(
                     text = dateAndPreview(note.dateLabel, note.preview, colors.onSurface, highlight),
                     style = screenType(14f, FontWeight.Normal, lineHeight = 20f),

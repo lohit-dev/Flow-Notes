@@ -205,7 +205,8 @@ fun SettingsScreen(
             // ── Appearance ───────────────────────────────────────────────────
             item(key = "h-appearance") { SectionHeader("Appearance", first = true) }
             item(key = "appearance") {
-                val modes = AppearanceMode.entries
+                // Light on the left, System in the middle, Dark on the right.
+                val modes = listOf(AppearanceMode.Light, AppearanceMode.System, AppearanceMode.Dark)
                 ConnectedToggleGroup(
                     options = modes.map { it.label },
                     selectedIndex = modes.indexOf(state.appearance),

@@ -59,6 +59,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -428,10 +431,22 @@ fun FoldersScreen(
             // ── Empty: no folders yet (shown under All notes) ────────────────
             if (folders.isEmpty()) {
                 item(key = "empty") {
+                    // Centre the empty state in what is left under the cards, like the mockup's .fill.
+                    val density = LocalDensity.current
+                    val remaining by remember {
+                        derivedStateOf {
+                            val info = listState.layoutInfo
+                            val used = info.visibleItemsInfo
+                                .filter { it.key != "empty" }
+                                .sumOf { it.size }
+                            (info.viewportSize.height - info.beforeContentPadding - info.afterContentPadding - used)
+                                .coerceAtLeast(0)
+                        }
+                    }
                     EmptyFolders(
                         onNewFolder = { dialog = FolderDialog.Create },
                         modifier = Modifier
-                            .fillParentMaxHeight(0.6f)
+                            .height(with(density) { remaining.toDp() }.coerceAtLeast(320.dp))
                             .animateItem(),
                     )
                 }
