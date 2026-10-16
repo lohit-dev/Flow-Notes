@@ -44,6 +44,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -480,11 +483,17 @@ private fun AccentSwatch(accent: AccentColor, selected: Boolean, onClick: () -> 
 // Text size row (.rw.col with the slider and a preview line)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Text size: the native Material 3 slider with a stop at every size (14 to 24). Dragging only
+ * previews the size in the sample line, and the whole app rescales when the thumb is released, so
+ * the layout does not shift under your finger while you drag.
+ */
 @Composable
 private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItemShapes) {
     val colors = MaterialTheme.colorScheme
     val clamped = size.coerceIn(TextSizeMin, TextSizeMax)
-    val range = (TextSizeMax - TextSizeMin).toFloat()
+    var dragging by remember(clamped) { mutableFloatStateOf(clamped.toFloat()) }
+    val preview = dragging.roundToInt()
 
     ListItem(
         shapes = shapes,
@@ -492,119 +501,58 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
         contentPadding = RowPadding,
     ) {
         Column {
-            RowLabel("Text size")
-            Spacer(Modifier.height(16.dp))
-            TextSizeSlider(
-                fraction = (clamped - TextSizeMin) / range,
-                onFractionChange = { fraction ->
-                    onSizeChange(TextSizeMin + Math.round(fraction * range))
-                },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Text size",
+                    modifier = Modifier.weight(1f),
+                    style = screenType(16f, FontWeight.Normal, lineHeight = 22f),
+                    color = colors.onSurface,
+                )
+                Text(
+                    text = "$preview",
+                    style = screenType(14f, FontWeight.Medium, lineHeight = 18f),
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "A",
+                    style = screenType(14f, FontWeight.Bold, lineHeight = 18f),
+                    color = colors.onSurfaceVariant,
+                )
+                Slider(
+                    value = dragging,
+                    onValueChange = { dragging = it },
+                    onValueChangeFinished = { onSizeChange(dragging.roundToInt()) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .semantics { contentDescription = "Text size" },
+                    valueRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
+                    steps = TextSizeMax - TextSizeMin - 1,
+                )
+                Text(
+                    text = "A",
+                    style = screenType(22f, FontWeight.Bold, lineHeight = 26f),
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            // The whole app is already scaled by size / 17, so divide that out to show the
+            // size being picked rather than the one in use.
             Text(
                 text = "The quick brown fox jumps over the lazy dog.",
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 6.dp),
                 style = screenType(
-                    clamped.toFloat(),
+                    17f * preview / clamped,
                     FontWeight.Normal,
-                    lineHeight = clamped * 1.4f
+                    lineHeight = 17f * preview / clamped * 1.4f,
                 ),
                 color = colors.onSurfaceVariant,
             )
         }
-    }
-}
-
-/** .sl: a filled part with a bold "A", a 4dp handle, and a track with a dot at the end. */
-@Composable
-private fun TextSizeSlider(fraction: Float, onFractionChange: (Float) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val primary = colors.primary
-    val currentOnChange by rememberUpdatedState(onFractionChange)
-    val handleWidth = 4.dp
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .semantics {
-                contentDescription = "Text size"
-                progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
-                setProgress { target ->
-                    currentOnChange(target.coerceIn(0f, 1f))
-                    true
-                }
-            }
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    down.consume()
-                    currentOnChange((down.position.x / size.width).coerceIn(0f, 1f))
-                    do {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { change ->
-                            if (change.positionChanged()) {
-                                change.consume()
-                                currentOnChange((change.position.x / size.width).coerceIn(0f, 1f))
-                            }
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            },
-    ) {
-        val position = maxWidth * fraction.coerceIn(0f, 1f)
-        val inactiveStart = position + 8.dp
-
-        Box(
-            modifier = Modifier
-                .offset(y = 8.dp)
-                .width((position - 8.dp).coerceAtLeast(0.dp))
-                .height(40.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 20.dp, topEnd = 4.dp, bottomEnd = 4.dp, bottomStart = 20.dp,
-                    ),
-                )
-                .background(primary),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text(
-                text = "A",
-                modifier = Modifier.padding(start = 12.dp),
-                style = screenType(16f, FontWeight.Black, lineHeight = 20f),
-                color = colors.onPrimary,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
-        Box(
-            modifier = Modifier
-                .offset(x = inactiveStart, y = 8.dp)
-                .width((maxWidth - inactiveStart).coerceAtLeast(0.dp))
-                .height(40.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 4.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp,
-                    ),
-                )
-                .background(colors.secondaryContainer),
-        ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp)
-                    .size(4.dp)
-                    .clip(CircleShape)
-                    .background(primary),
-            )
-        }
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(x = (position - handleWidth / 2).roundToPx(), y = 0) }
-                .width(handleWidth)
-                .height(56.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(primary),
-        )
     }
 }
 

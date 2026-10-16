@@ -12,6 +12,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
@@ -39,9 +40,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.king_grey.notes_app.R
+import com.king_grey.notes_app.data.models.Note
+import com.king_grey.notes_app.ui.viewmodel.NoteDraft
+import com.king_grey.notes_app.ui.viewmodel.NotesViewModel
+import com.king_grey.notes_app.utils.IdGenerator
 import com.king_grey.notes_app.ui.screens.folders.FolderColor
 import com.king_grey.notes_app.ui.screens.folders.FolderDetailScreen
 import com.king_grey.notes_app.ui.screens.folders.FolderDetailUiState
@@ -86,26 +93,44 @@ private val topLevelDestinations = listOf(
 )
 
 /**
- * App shell. All data lives in memory here: [allNotes] is the single source of truth and the
- * list, folder counts, search results and Recently deleted are derived from it every
- * composition. Swap this for a repository when real storage lands.
+ * App shell. Notes, folders and settings come from [NotesViewModel] (Room + DataStore); what is
+ * local here is only UI state: the back stack, the open editor, the search box, the open sheet.
  */
 @Composable
-fun AppNavigation() {
+fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     val backStack = remember { mutableStateListOf<AppDestination>(AppDestination.Notes) }
     val currentDestination = backStack.lastOrNull() ?: AppDestination.Notes
     val showBottomBar = topLevelDestinations.any { it.route == currentDestination }
     val layoutDirection = LocalLayoutDirection.current
     val context = LocalContext.current
 
-    var settingsState by remember { mutableStateOf(SettingsUiState()) }
-    var allNotes by remember { mutableStateOf(seedNotes()) }
-    var foldersBase by remember {
-        mutableStateOf(
-            listOf(
-                FolderItem(1L, "Work", FolderColor.Violet, 0),
-                FolderItem(2L, "Personal", FolderColor.Green, 0),
-            )
+    val storedNotes by viewModel.notes.collectAsStateWithLifecycle()
+    val storedFolders by viewModel.folders.collectAsStateWithLifecycle()
+    val storedSettings by viewModel.settings.collectAsStateWithLifecycle()
+    var openSheet by remember { mutableStateOf(SettingsSheet.None) }
+    var dragOrder by remember { mutableStateOf<List<Long>?>(null) }
+
+    // Wait for the first read from disk so the theme and lists do not flash defaults.
+    val loadedSettings = storedSettings
+    if (loadedSettings == null || storedNotes == null || storedFolders == null) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        return
+    }
+
+    // Read through a function, not a captured value: NavDisplay keeps each entry's lambda, so
+    // anything read here at composition time would be frozen when the entry was created.
+    fun settings(): SettingsUiState {
+        val s = storedSettings ?: loadedSettings
+        return SettingsUiState(
+            appearance = s.appearance,
+            accent = s.accent,
+            dynamicColor = s.dynamicColor,
+            textSize = s.textSize,
+            sort = s.sort,
+            sortOrder = s.sortOrder,
+            newNoteStart = s.newNoteStart,
+            showPreviews = s.showPreviews,
+            openSheet = openSheet,
         )
     }
     var selectedFolder by remember { mutableStateOf<Long?>(null) }
@@ -120,11 +145,19 @@ fun AppNavigation() {
     // Functions, not vals: NavDisplay keeps each entry's lambda, so a value computed here would
     // be frozen at the moment the entry was created. Calling these inside the entry content
     // reads the state there, and the screen recomposes when it changes.
-    fun liveNotes() = allNotes.filter { it.deletedAt == null }
-    fun trashedNotes() = allNotes.filter { it.deletedAt != null }
+    fun allNotes(): List<Note> = storedNotes.orEmpty()
+    fun liveNotes() = allNotes().filter { it.deletedAt == null }
+    fun trashedNotes() = allNotes().filter { it.deletedAt != null }
     fun folders(): List<FolderItem> {
         val live = liveNotes()
-        return foldersBase.map { f -> f.copy(noteCount = live.count { it.folderId == f.id }) }
+        val base = storedFolders.orEmpty()
+        val order = dragOrder
+        val ordered = if (order != null && order.toSet() == base.map { it.id }.toSet()) {
+            order.mapNotNull { id -> base.firstOrNull { it.id == id } }
+        } else base
+        return ordered.map { f ->
+            FolderItem(f.id, f.name, f.color, live.count { it.folderId == f.id })
+        }
     }
 
     fun foldersUi() = FoldersUiState(
@@ -139,75 +172,41 @@ fun AppNavigation() {
             sections = groupForList(
                 notes = liveNotes().filter { selectedFolder == null || it.folderId == selectedFolder },
                 folders = all,
-                sort = settingsState.sort,
-                order = settingsState.sortOrder,
+                sort = settings().sort,
+                order = settings().sortOrder,
             ),
             folders = all,
             selectedFolderId = selectedFolder,
             viewMode = viewMode,
-            sort = settingsState.sort,
-            sortOrder = settingsState.sortOrder,
+            sort = settings().sort,
+            sortOrder = settings().sortOrder,
         )
     }
 
     // ── Store operations ─────────────────────────────────────────────────────
-    fun updateNotes(ids: Collection<Long>, change: (StoredNote) -> StoredNote) {
-        allNotes = allNotes.map { if (it.id in ids) change(it) else it }
-    }
-
-    fun trash(ids: Collection<Long>) {
-        val stamp = System.currentTimeMillis()
-        updateNotes(ids) { it.copy(deletedAt = stamp) }
-    }
-
-    fun restore(ids: Collection<Long>) = updateNotes(ids) { it.copy(deletedAt = null) }
-
-    fun newFolderId() = (foldersBase.maxOfOrNull { it.id } ?: 0L) + 1L
-
-    fun addFolder(name: String): Long {
-        val id = newFolderId()
-        foldersBase = foldersBase + FolderItem(id, name, FolderColor.Violet, 0)
-        return id
-    }
-
     fun deleteFolder(id: Long, deleteNotes: Boolean) {
-        val stamp = System.currentTimeMillis()
-        allNotes = allNotes.map {
-            if (it.folderId == id) {
-                it.copy(
-                    folderId = null,
-                    deletedAt = if (deleteNotes && it.deletedAt == null) stamp else it.deletedAt,
-                )
-            } else it
-        }
-        foldersBase = foldersBase.filter { it.id != id }
+        viewModel.deleteFolder(id, deleteNotes)
         if (selectedFolder == id) selectedFolder = null
         if (searchFolderId == id) searchFolderId = null
     }
 
-    /** Saves what the editor shows. A new note is only stored once it has something in it. */
+    /** Hands what the editor shows to the ViewModel to store. */
     fun commitEditor(s: NoteEditorUiState) {
         editorState = s
-        val existing = allNotes.firstOrNull { it.id == s.noteId }
-        val stamp = System.currentTimeMillis()
-        val changed = existing == null || existing.title != s.title || existing.blocks != s.blocks
-        val note = (existing ?: StoredNote(id = s.noteId, createdAt = stamp)).copy(
-            title = s.title,
-            blocks = s.blocks,
-            pinned = s.pinned,
-            locked = s.locked,
-            folderId = s.folderId,
-            editedAt = if (changed) stamp else existing.editedAt,
+        viewModel.saveDraft(
+            NoteDraft(
+                id = s.noteId,
+                title = s.title,
+                blocks = s.blocks,
+                pinned = s.pinned,
+                locked = s.locked,
+                folderId = s.folderId,
+            ),
         )
-        if (existing == null) {
-            if (!note.isBlank()) allNotes = allNotes + note
-        } else {
-            allNotes = allNotes.map { if (it.id == note.id) note else it }
-        }
     }
 
     fun openNote(id: Long) {
-        val n = allNotes.firstOrNull { it.id == id } ?: return
+        val n = allNotes().firstOrNull { it.id == id } ?: return
         editorState = NoteEditorUiState(
             noteId = n.id,
             title = n.title,
@@ -221,8 +220,8 @@ fun AppNavigation() {
     }
 
     fun startNewNote(forceChecklist: Boolean = false, folderId: Long? = null) {
-        val id = (allNotes.maxOfOrNull { it.id } ?: 0L) + 1L
-        val start = settingsState.newNoteStart
+        val id = IdGenerator.newId()
+        val start = settings().newNoteStart
         val checklist = forceChecklist || start == NewNoteStart.Checklist
         editorState = NoteEditorUiState(
             noteId = id,
@@ -239,10 +238,7 @@ fun AppNavigation() {
         if (backStack.size <= 1) return
         if (backStack.last() is AppDestination.NoteEditor) {
             // A note left empty is not worth keeping.
-            val id = editorState.noteId
-            allNotes.firstOrNull { it.id == id }?.let { n ->
-                if (n.isBlank()) allNotes = allNotes.filterNot { it.id == id }
-            }
+            viewModel.discardIfBlank(editorState.noteId)
         }
         backStack.removeAt(backStack.lastIndex)
     }
@@ -319,12 +315,12 @@ fun AppNavigation() {
 
     // ── Theme ────────────────────────────────────────────────────────────────
     val systemDarkTheme = isSystemInDarkTheme()
-    val darkTheme = when (settingsState.appearance) {
+    val darkTheme = when (settings().appearance) {
         AppearanceMode.System -> systemDarkTheme
         AppearanceMode.Light -> false
         AppearanceMode.Dark -> true
     }
-    val palette = when (settingsState.accent) {
+    val palette = when (settings().accent) {
         AccentColor.Violet -> FlowNotesPalette.Violet
         AccentColor.Sapphire -> FlowNotesPalette.Sapphire
         AccentColor.Meadow -> FlowNotesPalette.Meadow
@@ -332,14 +328,14 @@ fun AppNavigation() {
         AccentColor.Orchid -> FlowNotesPalette.Orchid
     }
     val baseDensity = LocalDensity.current
-    val textScale = settingsState.textSize / 17f
+    val textScale = settings().textSize / 17f
 
     CompositionLocalProvider(
         LocalDensity provides Density(baseDensity.density, fontScale = textScale),
     ) {
         FlowNotesTheme(
             darkTheme = darkTheme,
-            dynamicColor = settingsState.dynamicColor,
+            dynamicColor = settings().dynamicColor,
             palette = palette,
         ) {
             val colors = MaterialTheme.colorScheme
@@ -412,7 +408,7 @@ fun AppNavigation() {
                                     onOpenNote = { note -> openNote(note.id) },
                                     onNewNote = { startNewNote() },
                                     onNewChecklist = { startNewNote(forceChecklist = true) },
-                                    onNewFolder = { name -> addFolder(name) },
+                                    onNewFolder = { name -> viewModel.createFolder(name) },
                                     onOpenSearch = {
                                         searchQuery = ""
                                         searchFolderId = null
@@ -420,26 +416,18 @@ fun AppNavigation() {
                                     },
                                     onFolderFilter = { selectedFolder = it },
                                     onViewModeChange = { viewMode = it },
-                                    onSortSave = { sort, order ->
-                                        settingsState =
-                                            settingsState.copy(sort = sort, sortOrder = order)
-                                    },
+                                    onSortSave = { sort, order -> viewModel.setSort(sort, order) },
                                     onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
-                                    onTogglePin = { ids, pin ->
-                                        updateNotes(ids) { it.copy(pinned = pin) }
-                                    },
-                                    onMoveNotes = { ids, folderId ->
-                                        updateNotes(ids) { it.copy(folderId = folderId) }
-                                    },
+                                    onTogglePin = { ids, pin -> viewModel.setPinned(ids, pin) },
+                                    onMoveNotes = { ids, folderId -> viewModel.moveNotes(ids, folderId) },
                                     onCreateFolderAndMove = { ids, name ->
-                                        val id = addFolder(name)
-                                        updateNotes(ids) { it.copy(folderId = id) }
+                                        viewModel.createFolderAndMove(ids, name)
                                     },
                                     onShareNotes = { ids ->
-                                        share(shareTextOf(allNotes.filter { it.id in ids }))
+                                        share(shareTextOf(allNotes().filter { it.id in ids }))
                                     },
-                                    onDeleteNotes = { ids -> trash(ids) },
-                                    onUndoDelete = { ids -> restore(ids) },
+                                    onDeleteNotes = { ids -> viewModel.trash(ids) },
+                                    onUndoDelete = { ids -> viewModel.restore(ids) },
                                     onSelectionModeChange = { _ -> },
                                     onFabOpenChange = { fabMenuOpen = it },
                                 )
@@ -502,14 +490,15 @@ fun AppNavigation() {
                                         commitEditor(editorState.copy(folderId = folderId))
                                     },
                                     onCreateFolderAndMove = { name ->
-                                        val id = addFolder(name)
-                                        commitEditor(editorState.copy(folderId = id))
+                                        viewModel.createFolder(name) { id ->
+                                            commitEditor(editorState.copy(folderId = id))
+                                        }
                                     },
                                     onToggleLock = {
                                         commitEditor(editorState.copy(locked = !editorState.locked))
                                     },
                                     onDelete = {
-                                        trash(listOf(editorState.noteId))
+                                        viewModel.trash(listOf(editorState.noteId))
                                         popBack()
                                     },
                                     onAttach = { kind ->
@@ -542,12 +531,8 @@ fun AppNavigation() {
                                         backStack.add(AppDestination.FolderDetails(folder.id))
                                     },
                                     onOpenDeleted = { backStack.add(AppDestination.RecentlyDeleted) },
-                                    onCreateFolder = { name -> addFolder(name) },
-                                    onRenameFolder = { id, name ->
-                                        foldersBase = foldersBase.map {
-                                            if (it.id == id) it.copy(name = name) else it
-                                        }
-                                    },
+                                    onCreateFolder = { name -> viewModel.createFolder(name) },
+                                    onRenameFolder = { id, name -> viewModel.renameFolder(id, name) },
                                     onDeleteFolder = { id, deleteNotes ->
                                         deleteFolder(
                                             id,
@@ -555,15 +540,17 @@ fun AppNavigation() {
                                         )
                                     },
                                     onMoveFolder = { fromId, toId ->
-                                        val list = foldersBase.toMutableList()
-                                        val fromIdx = list.indexOfFirst { it.id == fromId }
-                                        val toIdx = list.indexOfFirst { it.id == toId }
+                                        val list = folders().map { it.id }.toMutableList()
+                                        val fromIdx = list.indexOf(fromId)
+                                        val toIdx = list.indexOf(toId)
                                         if (fromIdx != -1 && toIdx != -1) {
                                             list.add(toIdx, list.removeAt(fromIdx))
-                                            foldersBase = list
+                                            dragOrder = list
                                         }
                                     },
-                                    onReorderFinished = {},
+                                    onReorderFinished = {
+                                        dragOrder?.let { viewModel.reorderFolders(it) }
+                                    },
                                 )
 
                             }
@@ -576,8 +563,8 @@ fun AppNavigation() {
                                         ?: FolderItem(folderId, "Folder", FolderColor.Violet, 0)
                                     val folderNotes = sortNotes(
                                         liveNotes().filter { it.folderId == folderId },
-                                        settingsState.sort,
-                                        settingsState.sortOrder,
+                                        settings().sort,
+                                        settings().sortOrder,
                                     ).map { it.toFolderNote() }
                                     FolderDetailScreen(
                                         state = FolderDetailUiState(
@@ -590,15 +577,9 @@ fun AppNavigation() {
                                         onBack = { popBack() },
                                         onOpenNote = { note -> openNote(note.id) },
                                         onNewNote = { startNewNote(folderId = folderId) },
-                                        onRename = { newName ->
-                                            foldersBase = foldersBase.map {
-                                                if (it.id == folderId) it.copy(name = newName) else it
-                                            }
-                                        },
+                                        onRename = { newName -> viewModel.renameFolder(folderId, newName) },
                                         onColorChange = { newColor ->
-                                            foldersBase = foldersBase.map {
-                                                if (it.id == folderId) it.copy(color = newColor) else it
-                                            }
+                                            viewModel.setFolderColor(folderId, newColor)
                                         },
                                         onSortNotes = {},
                                         onDeleteFolder = { deleteNotes ->
@@ -617,52 +598,30 @@ fun AppNavigation() {
                                     ),
                                     onBack = { popBack() },
                                     onOpenNote = { _ -> },
-                                    onRestore = { ids -> restore(ids) },
-                                    onDeleteForever = { ids ->
-                                        allNotes = allNotes.filterNot { it.id in ids }
-                                    },
+                                    onRestore = { ids -> viewModel.restore(ids) },
+                                    onDeleteForever = { ids -> viewModel.deleteForever(ids) },
                                 )
 
                             }
 
                             AppDestination.Settings -> NavEntry(key) {
                                 SettingsScreen(
-                                    state = settingsState,
-                                    onAppearanceChange = {
-                                        settingsState = settingsState.copy(appearance = it)
-                                    },
-                                    onAccentChange = {
-                                        settingsState = settingsState.copy(accent = it)
-                                    },
-                                    onDynamicColorChange = {
-                                        settingsState = settingsState.copy(dynamicColor = it)
-                                    },
-                                    onTextSizeChange = {
-                                        settingsState = settingsState.copy(textSize = it)
-                                    },
-                                    onOpenSheet = {
-                                        settingsState = settingsState.copy(openSheet = it)
-                                    },
-                                    onCloseSheet = {
-                                        settingsState =
-                                            settingsState.copy(openSheet = SettingsSheet.None)
-                                    },
+                                    state = settings(),
+                                    onAppearanceChange = { viewModel.setAppearance(it) },
+                                    onAccentChange = { viewModel.setAccent(it) },
+                                    onDynamicColorChange = { viewModel.setDynamicColor(it) },
+                                    onTextSizeChange = { viewModel.setTextSize(it) },
+                                    onOpenSheet = { openSheet = it },
+                                    onCloseSheet = { openSheet = SettingsSheet.None },
                                     onSortSave = { sort, order ->
-                                        settingsState = settingsState.copy(
-                                            sort = sort,
-                                            sortOrder = order,
-                                            openSheet = SettingsSheet.None,
-                                        )
+                                        viewModel.setSort(sort, order)
+                                        openSheet = SettingsSheet.None
                                     },
                                     onStartWithSave = { start ->
-                                        settingsState = settingsState.copy(
-                                            newNoteStart = start,
-                                            openSheet = SettingsSheet.None,
-                                        )
+                                        viewModel.setNewNoteStart(start)
+                                        openSheet = SettingsSheet.None
                                     },
-                                    onShowPreviewsChange = {
-                                        settingsState = settingsState.copy(showPreviews = it)
-                                    },
+                                    onShowPreviewsChange = { viewModel.setShowPreviews(it) },
                                     onOpenPrivacy = { backStack.add(AppDestination.PrivacyPolicy) },
                                     onRateApp = {
                                         val marketIntent = Intent(

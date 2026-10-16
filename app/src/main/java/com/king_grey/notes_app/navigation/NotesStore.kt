@@ -1,13 +1,14 @@
 package com.king_grey.notes_app.navigation
 
+import com.king_grey.notes_app.data.models.Note
+import com.king_grey.notes_app.data.models.displayTitle
+import com.king_grey.notes_app.data.models.preview
 import com.king_grey.notes_app.ui.screens.folders.DeletedNote
 import com.king_grey.notes_app.ui.screens.folders.FolderItem
 import com.king_grey.notes_app.ui.screens.folders.FolderNote
-import com.king_grey.notes_app.ui.screens.notes.NoteBlock
 import com.king_grey.notes_app.ui.screens.notes.NoteItem
 import com.king_grey.notes_app.ui.screens.notes.NoteSection
 import com.king_grey.notes_app.ui.screens.notes.noteToPlainText
-import com.king_grey.notes_app.ui.screens.notes.notePreview
 import com.king_grey.notes_app.ui.screens.settings.NoteSort
 import com.king_grey.notes_app.ui.screens.settings.SortOrder
 import java.text.SimpleDateFormat
@@ -16,40 +17,13 @@ import java.util.Date
 import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────────────
-// In-memory note store. Plain Kotlin, no persistence: AppNavigation keeps a
-// `List<StoredNote>` in Compose state and these helpers derive everything the
-// screens show from it. Replace with a repository when real storage lands.
+// Presentation helpers: turn the stored [Note]s into what each screen shows (sections, labels).
 // ─────────────────────────────────────────────────────────────────────────────
 
 private const val DAY_MS = 24L * 60 * 60 * 1000
 const val DELETED_RETENTION_DAYS = 30
 
-data class StoredNote(
-    val id: Long,
-    val title: String = "",
-    val blocks: List<NoteBlock> = emptyList(),
-    val folderId: Long? = null,
-    val pinned: Boolean = false,
-    val locked: Boolean = false,
-    val createdAt: Long,
-    val editedAt: Long = createdAt,
-    /** Non-null while the note sits in Recently deleted. */
-    val deletedAt: Long? = null,
-)
-
-val StoredNote.preview: String get() = notePreview(blocks)
-val StoredNote.displayTitle: String get() = title.trim().ifEmpty { "New note" }
-
-/** True when there is nothing worth keeping: no title, no text, no attachments. */
-fun StoredNote.isBlank(): Boolean = title.isBlank() && blocks.all { block ->
-    when (block) {
-        is NoteBlock.Text -> block.text.isBlank()
-        is NoteBlock.Check -> block.text.isBlank()
-        else -> false
-    }
-}
-
-fun shareTextOf(notes: List<StoredNote>): String =
+fun shareTextOf(notes: List<Note>): String =
     notes.joinToString("\n\n") { noteToPlainText(it.title, it.blocks) }
 
 fun editorDateLabel(millis: Long): String =
@@ -79,7 +53,7 @@ fun listDateLabel(millis: Long, now: Long = System.currentTimeMillis()): String 
     }
 }
 
-fun StoredNote.toNoteItem(folders: List<FolderItem>, now: Long = System.currentTimeMillis()): NoteItem {
+fun Note.toNoteItem(folders: List<FolderItem>, now: Long = System.currentTimeMillis()): NoteItem {
     val folder = folders.firstOrNull { it.id == folderId }
     return NoteItem(
         id = id,
@@ -93,7 +67,7 @@ fun StoredNote.toNoteItem(folders: List<FolderItem>, now: Long = System.currentT
     )
 }
 
-fun StoredNote.toFolderNote(now: Long = System.currentTimeMillis()) = FolderNote(
+fun Note.toFolderNote(now: Long = System.currentTimeMillis()) = FolderNote(
     id = id,
     title = displayTitle,
     dateLabel = listDateLabel(editedAt, now),
@@ -101,7 +75,7 @@ fun StoredNote.toFolderNote(now: Long = System.currentTimeMillis()) = FolderNote
     pinned = pinned,
 )
 
-fun StoredNote.toDeletedNote(now: Long = System.currentTimeMillis()): DeletedNote {
+fun Note.toDeletedNote(now: Long = System.currentTimeMillis()): DeletedNote {
     val gone = ((now - (deletedAt ?: now)) / DAY_MS).toInt()
     return DeletedNote(
         id = id,
@@ -113,7 +87,7 @@ fun StoredNote.toDeletedNote(now: Long = System.currentTimeMillis()): DeletedNot
 }
 
 /** Live notes sorted by the user's sort setting. Pinned handling is left to [groupForList]. */
-fun sortNotes(notes: List<StoredNote>, sort: NoteSort, order: SortOrder): List<StoredNote> {
+fun sortNotes(notes: List<Note>, sort: NoteSort, order: SortOrder): List<Note> {
     val base = when (sort) {
         NoteSort.DateEdited -> notes.sortedBy { it.editedAt }
         NoteSort.DateCreated -> notes.sortedBy { it.createdAt }
@@ -130,7 +104,7 @@ fun sortNotes(notes: List<StoredNote>, sort: NoteSort, order: SortOrder): List<S
 
 /** Pinned, Today, Previous 7 days, Earlier. Empty sections are left out. */
 fun groupForList(
-    notes: List<StoredNote>,
+    notes: List<Note>,
     folders: List<FolderItem>,
     sort: NoteSort,
     order: SortOrder,
@@ -139,12 +113,12 @@ fun groupForList(
     val sorted = sortNotes(notes, sort, order)
     val today = startOfDay(now)
     val week = today - 7 * DAY_MS
-    fun section(title: String, list: List<StoredNote>) =
+    fun section(title: String, list: List<Note>) =
         NoteSection(title, list.map { it.toNoteItem(folders, now) })
 
     val pinned = sorted.filter { it.pinned }
     val rest = sorted.filterNot { it.pinned }
-    val stamp: (StoredNote) -> Long = { if (sort == NoteSort.DateCreated) it.createdAt else it.editedAt }
+    val stamp: (Note) -> Long = { if (sort == NoteSort.DateCreated) it.createdAt else it.editedAt }
 
     // Title sort has no meaningful date groups, so everything unpinned goes in one section.
     val sections = if (sort == NoteSort.Title) {
@@ -158,45 +132,3 @@ fun groupForList(
     }
     return (listOf(section("Pinned", pinned)) + sections).filter { it.notes.isNotEmpty() }
 }
-
-/** Starting data so every screen has something to show. */
-fun seedNotes(now: Long = System.currentTimeMillis()): List<StoredNote> = listOf(
-    StoredNote(
-        id = 1,
-        title = "Welcome to Flow Notes",
-        blocks = listOf(NoteBlock.Text(1, "Tap to view or edit this note.")),
-        pinned = true,
-        createdAt = now - 60_000,
-    ),
-    StoredNote(
-        id = 2,
-        title = "Sprint planning",
-        blocks = listOf(
-            NoteBlock.Check(1, "Review the backlog", checked = true),
-            NoteBlock.Check(2, "Pick the top five"),
-            NoteBlock.Check(3, "Book the retro"),
-        ),
-        folderId = 1L,
-        createdAt = now - DAY_MS,
-    ),
-    StoredNote(
-        id = 3,
-        title = "Weekend shopping",
-        blocks = listOf(NoteBlock.Text(1, "Oat milk, lemons, coffee beans, basil.")),
-        folderId = 2L,
-        createdAt = now - 3 * DAY_MS,
-    ),
-    StoredNote(
-        id = 4,
-        title = "Reading list",
-        blocks = listOf(NoteBlock.Text(1, "Three books to start before the end of the month.")),
-        createdAt = now - 12 * DAY_MS,
-    ),
-    StoredNote(
-        id = 5,
-        title = "Old meeting notes",
-        blocks = listOf(NoteBlock.Text(1, "Some body text")),
-        createdAt = now - 20 * DAY_MS,
-        deletedAt = now - 5 * DAY_MS,
-    ),
-)

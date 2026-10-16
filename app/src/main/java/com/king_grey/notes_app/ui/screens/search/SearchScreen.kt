@@ -50,6 +50,13 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material3.ExpandedFullScreenSearchBar
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SearchBarValue
+import androidx.compose.material3.rememberSearchBarState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
@@ -80,6 +87,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.king_grey.notes_app.ui.screens.folders.BackButton
+import com.king_grey.notes_app.ui.screens.folders.BackIcon
 import com.king_grey.notes_app.ui.screens.folders.CloseIcon
 import com.king_grey.notes_app.ui.screens.folders.EmptyBlock
 import com.king_grey.notes_app.ui.screens.folders.FolderColor
@@ -137,98 +145,75 @@ fun SearchScreen(
     onClearRecent: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
-    var query by rememberSaveable { mutableStateOf(initialQuery) }
+    // The native Material 3 search bar, always expanded: this screen is the expanded state of the
+    // Notes search pill. Collapsing it (its back arrow or system back) leaves the screen.
+    val textFieldState = rememberTextFieldState(initialQuery)
+    val searchBarState = rememberSearchBarState(initialValue = SearchBarValue.Expanded)
+    val query = textFieldState.text.toString()
+    fun setQuery(value: String) = textFieldState.setTextAndPlaceCursorAtEnd(value)
     val focus = remember { FocusRequester() }
     val trimmed = query.trim()
     val currentOnQueryChange by rememberUpdatedState(onQueryChange)
+    val currentOnBack by rememberUpdatedState(onBack)
 
     LaunchedEffect(query) { currentOnQueryChange(query) }
+    LaunchedEffect(searchBarState) {
+        snapshotFlow { searchBarState.targetValue }.collect {
+            if (it == SearchBarValue.Collapsed) currentOnBack()
+        }
+    }
     LaunchedEffect(Unit) { if (query.isEmpty()) focus.requestFocus() }
 
     val voice = rememberVoiceSearch { heard ->
-        query = heard
+        setQuery(heard)
         onSubmit(heard.trim())
     }
     if (voice.listening) VoiceSheet(onCancel = voice.cancel)
+
+    val inputField = @Composable {
+        SearchBarDefaults.InputField(
+            textFieldState = textFieldState,
+            searchBarState = searchBarState,
+            onSearch = { if (trimmed.isNotEmpty()) onSubmit(trimmed) },
+            modifier = Modifier.focusRequester(focus),
+            placeholder = {
+                Text(
+                    text = "Search notes",
+                    style = screenType(16f, FontWeight.Normal, lineHeight = 22f),
+                )
+            },
+            leadingIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(BackIcon, contentDescription = "Back")
+                }
+            },
+            trailingIcon = {
+                if (query.isEmpty()) {
+                    if (voice.available) {
+                        IconButton(onClick = voice.start) {
+                            Icon(MicIcon, contentDescription = "Search by voice")
+                        }
+                    }
+                } else {
+                    IconButton(onClick = { setQuery(""); focus.requestFocus() }) {
+                        Icon(CloseIcon, contentDescription = "Clear")
+                    }
+                }
+            },
+        )
+    }
 
     Scaffold(
         modifier = modifier,
         containerColor = colors.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .statusBarsPadding()
-                .imePadding(),
+    ) { _ ->
+        ExpandedFullScreenSearchBar(
+            state = searchBarState,
+            inputField = inputField,
+            colors = SearchBarDefaults.colors(containerColor = colors.background),
         ) {
-            // .sin: 56dp pill (28dp radius, surfaceContainerHigh): back, the field, then mic or clear
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(colors.surfaceContainerHigh)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                BackButton(onBack)
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focus),
-                    singleLine = true,
-                    textStyle = screenType(16f, FontWeight.Normal, lineHeight = 22f)
-                        .copy(color = colors.onSurface),
-                    cursorBrush = SolidColor(colors.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        if (trimmed.isNotEmpty()) onSubmit(
-                            trimmed
-                        )
-                    }),
-                    decorationBox = { inner ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            if (query.isEmpty()) {
-                                Text(
-                                    text = "Search notes",
-                                    style = screenType(16f, FontWeight.Normal, lineHeight = 22f),
-                                    color = colors.onSurfaceVariant,
-                                )
-                            }
-                            inner()
-                        }
-                    },
-                )
-                if (query.isEmpty()) {
-                    if (voice.available) {
-                        IconButton(onClick = voice.start, modifier = Modifier.size(48.dp)) {
-                            Icon(
-                                MicIcon,
-                                contentDescription = "Search by voice",
-                                tint = colors.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    IconButton(
-                        onClick = { query = ""; focus.requestFocus() },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            CloseIcon,
-                            contentDescription = "Clear",
-                            tint = colors.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
+            Column(modifier = Modifier.fillMaxSize()) {
             if (state.folders.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -253,10 +238,10 @@ fun SearchScreen(
                 trimmed.isEmpty() -> RecentList(
                     recent = state.recent,
                     onPick = { picked ->
-                        query = picked
+                        setQuery(picked)
                         onSubmit(picked)
                     },
-                    onFill = { query = it },
+                    onFill = { setQuery(it) },
                     onClear = onClearRecent,
                 )
 
@@ -295,6 +280,7 @@ fun SearchScreen(
                         onOpenNote(it)
                     },
                 )
+            }
             }
         }
     }
