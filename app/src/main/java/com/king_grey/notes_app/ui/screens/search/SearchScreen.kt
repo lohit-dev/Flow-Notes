@@ -214,7 +214,8 @@ fun SearchScreen(
             colors = SearchBarDefaults.colors(containerColor = colors.background),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-            if (state.folders.isNotEmpty()) {
+            // Folder chips filter results, so they only make sense once there is a query (as in the mockup).
+            if (state.folders.isNotEmpty() && trimmed.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier.padding(bottom = 4.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
