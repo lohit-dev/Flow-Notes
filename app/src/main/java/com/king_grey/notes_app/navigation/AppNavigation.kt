@@ -149,6 +149,8 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var searchFolderId by remember { mutableStateOf<Long?>(null) }
     var showFolderSort by remember { mutableStateOf(false) }
+    // Not state: only read when a pop transition starts, to pick the search close animation.
+    val leavingSearch = remember { object { var value = false } }
 
     // ── Derived from the store ───────────────────────────────────────────────
     // Functions, not vals: NavDisplay keeps each entry's lambda, so a value computed here would
@@ -245,6 +247,7 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
 
     fun popBack() {
         if (backStack.size <= 1) return
+        leavingSearch.value = backStack.last() is AppDestination.Search
         if (backStack.last() is AppDestination.NoteEditor) {
             // A note left empty is not worth keeping.
             viewModel.discardIfBlank(editorState.noteId)
@@ -409,7 +412,10 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                     // Tabs cross-fade with a small scale; going deeper slides in from the right
                     // and back slides out again, all on springs (see FlowMotion).
                     transitionSpec = {
-                        if (backStack.lastOrNull()?.let { top -> topLevelDestinations.any { it.route == top } } == true) {
+                        if (backStack.lastOrNull() == AppDestination.Search) {
+                            // The search bar expands by itself, so the screen only fades.
+                            fadeIn(FlowMotion.effects()) togetherWith fadeOut(FlowMotion.effects())
+                        } else if (backStack.lastOrNull()?.let { top -> topLevelDestinations.any { it.route == top } } == true) {
                             (fadeIn(FlowMotion.effects()) + scaleIn(FlowMotion.spatial(), initialScale = 0.96f)) togetherWith
                                 fadeOut(FlowMotion.effects())
                         } else {
@@ -418,8 +424,12 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                         }
                     },
                     popTransitionSpec = {
-                        (slideInHorizontally(FlowMotion.spatial()) { -it / 6 } + fadeIn(FlowMotion.effects())) togetherWith
-                            (slideOutHorizontally(FlowMotion.spatial()) { it / 4 } + fadeOut(FlowMotion.effects()))
+                        if (leavingSearch.value) {
+                            fadeIn(FlowMotion.effects()) togetherWith fadeOut(FlowMotion.effects())
+                        } else {
+                            (slideInHorizontally(FlowMotion.spatial()) { -it / 6 } + fadeIn(FlowMotion.effects())) togetherWith
+                                (slideOutHorizontally(FlowMotion.spatial()) { it / 4 } + fadeOut(FlowMotion.effects()))
+                        }
                     },
                     entryProvider = { key ->
                         when (key) {

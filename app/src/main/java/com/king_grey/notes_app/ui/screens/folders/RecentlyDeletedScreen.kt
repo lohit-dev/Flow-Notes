@@ -1,13 +1,6 @@
 package com.king_grey.notes_app.ui.screens.folders
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -57,7 +51,6 @@ import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.heading
@@ -74,7 +67,6 @@ import com.king_grey.notes_app.ui.screens.notes.NoteBlock
 import com.king_grey.notes_app.ui.screens.notes.ReadOnlyBlocks
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
 import com.king_grey.notes_app.ui.screens.shared.screenType
-import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -381,61 +373,28 @@ private fun Morph.toShape(progress: Float): Shape {
 }
 
 /** .sk: the 24dp selection circle. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SelectDot(selected: Boolean) {
     val colors = MaterialTheme.colorScheme
-    // The circle morphs into a scalloped cookie when selected, with a springy pop.
-    val morph = remember { Morph(MaterialShapes.Circle, MaterialShapes.Cookie9Sided) }
-    val progress by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = FlowMotion.spatial(),
-        label = "select-morph",
-    )
-    val shape = morph.toShape(progress.coerceIn(0f, 1f))
-    val fill by animateColorAsState(
-        targetValue = if (selected) colors.primary else Color.Transparent,
-        animationSpec = FlowMotion.effects(),
-        label = "select-fill",
-    )
-    val ring by animateColorAsState(
-        targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
-        animationSpec = FlowMotion.effects(),
-        label = "select-ring",
-    )
-    val scale by animateFloatAsState(
-        targetValue = if (selected) 1.08f else 1f,
-        animationSpec = FlowMotion.bouncy(),
-        label = "select-scale",
-    )
     Box(
         modifier = Modifier
             .size(24.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(shape)
-            .background(fill)
-            .border(2.dp, ring, shape),
+            .clip(CircleShape)
+            .then(
+                if (selected) {
+                    Modifier.background(colors.primary)
+                } else {
+                    Modifier.border(2.dp, colors.onSurfaceVariant, CircleShape)
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        AnimatedVisibility(
-            visible = selected,
-            enter = scaleIn(
-                FlowMotion.bouncy(),
-                initialScale = 0.2f
-            ) + fadeIn(FlowMotion.effects()),
-            exit = scaleOut(
-                FlowMotion.fastSpatial(),
-                targetScale = 0.2f
-            ) + fadeOut(FlowMotion.effects()),
-        ) {
+        if (selected) {
             Icon(
                 CheckStrokeIcon,
                 contentDescription = "Selected",
                 modifier = Modifier.size(16.dp),
-                tint = colors.onPrimary,
+                tint = colors.onPrimary
             )
         }
     }

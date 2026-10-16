@@ -1,5 +1,12 @@
 package com.king_grey.notes_app.ui.screens.settings
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -577,6 +584,8 @@ private fun ChoiceSheet(
     cancelLabel: String = "Cancel",
     doneLabel: String = "Done",
     doneEnabled: Boolean = true,
+    /** Two equal-width buttons that fill the row, instead of two buttons pushed to the end. */
+    equalButtons: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -626,7 +635,9 @@ private fun ChoiceSheet(
             ) {
                 FilledTonalButton(
                     onClick = { closeThen(onCancel) },
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier
+                        .height(48.dp)
+                        .then(if (equalButtons) Modifier.weight(1f) else Modifier),
                     shapes = ButtonDefaults.shapes(),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = colors.secondaryContainer,
@@ -639,7 +650,9 @@ private fun ChoiceSheet(
                 Button(
                     onClick = { closeThen(onDone) },
                     enabled = doneEnabled,
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier
+                        .height(48.dp)
+                        .then(if (equalButtons) Modifier.weight(1f) else Modifier),
                     shapes = ButtonDefaults.shapes(),
                     contentPadding = PaddingValues(horizontal = 24.dp),
                 ) {
@@ -735,7 +748,7 @@ private fun StartWithSheet(
     }
 }
 
-/** Rate sheet: app icon, five stars, Not now / Submit. */
+/** Rate sheet: app icon, five springy stars with a word for the rating, Not now / Submit. */
 @Composable
 internal fun RateSheet(
     onSubmit: (Int) -> Unit,
@@ -743,6 +756,7 @@ internal fun RateSheet(
 ) {
     val colors = MaterialTheme.colorScheme
     var rating by remember { mutableIntStateOf(0) }
+    val words = listOf("Tap a star to rate it", "Not great", "Could be better", "It’s okay", "Pretty good", "Loved it!")
 
     ChoiceSheet(
         title = "Rate Flow Notes",
@@ -754,49 +768,55 @@ internal fun RateSheet(
         cancelLabel = "Not now",
         doneLabel = "Submit",
         doneEnabled = rating > 0,
+        equalButtons = true,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 8.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(colors.primary),
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(colors.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_note),
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = colors.onPrimary,
+                    modifier = Modifier.size(34.dp),
+                    tint = colors.onPrimaryContainer,
                 )
             }
             Text(
                 text = "Enjoying Flow Notes?",
-                modifier = Modifier.padding(top = 12.dp),
-                style = screenType(16f, FontWeight.Medium, lineHeight = 22f),
+                modifier = Modifier.padding(top = 16.dp),
+                style = screenType(20f, FontWeight.Bold, lineHeight = 26f),
                 color = colors.onSurface,
-            )
-            Text(
-                text = "Tap a star to rate it.",
-                modifier = Modifier.padding(top = 2.dp),
-                style = screenType(14f, FontWeight.Normal, lineHeight = 18f),
-                color = colors.onSurfaceVariant,
             )
             Row(
                 modifier = Modifier
                     .padding(top = 16.dp)
                     .selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 for (star in 1..5) {
+                    val filled = star <= rating
+                    val scale by animateFloatAsState(
+                        targetValue = if (star == rating) 1.25f else 1f,
+                        animationSpec = FlowMotion.bouncy(),
+                        label = "star-scale",
+                    )
+                    val tint by animateColorAsState(
+                        targetValue = if (filled) colors.primary else colors.outlineVariant,
+                        animationSpec = FlowMotion.effects(),
+                        label = "star-tint",
+                    )
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
                             .semantics { contentDescription = "$star of 5 stars" }
                             .selectable(
@@ -809,11 +829,28 @@ internal fun RateSheet(
                         Icon(
                             painter = painterResource(R.drawable.ic_star),
                             contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                            tint = if (star <= rating) colors.primary else colors.outlineVariant,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
+                            tint = tint,
                         )
                     }
                 }
+            }
+            AnimatedContent(
+                targetState = words[rating],
+                transitionSpec = { fadeIn(FlowMotion.effects()) togetherWith fadeOut(FlowMotion.effects()) },
+                modifier = Modifier.padding(top = 12.dp),
+                label = "rating-word",
+            ) { word ->
+                Text(
+                    text = word,
+                    style = screenType(14f, if (rating > 0) FontWeight.Bold else FontWeight.Normal, lineHeight = 20f),
+                    color = if (rating > 0) colors.primary else colors.onSurfaceVariant,
+                )
             }
         }
     }

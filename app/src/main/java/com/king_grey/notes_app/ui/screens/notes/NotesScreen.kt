@@ -1,5 +1,7 @@
 package com.king_grey.notes_app.ui.screens.notes
 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material3.TextButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -320,7 +322,9 @@ fun NotesScreen(
         modifier = modifier,
         containerColor = colors.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = {
+            SnackbarHost(snackbar) { data -> FlowSnackbar(data) }
+        },
         topBar = {
             AnimatedVisibility(
                 visible = selecting,
@@ -701,6 +705,47 @@ private fun Modifier.bleed(amount: androidx.compose.ui.unit.Dp): Modifier =
         layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
     }
 
+/**
+ * The Undo snackbar: a floating rounded card in the app's own colours (not the stock light
+ * inverse bar), inset 16dp from the sides, with the action in the primary colour.
+ */
+@Composable
+private fun FlowSnackbar(data: androidx.compose.material3.SnackbarData) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .shadow(6.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surfaceContainerHighest)
+            .padding(start = 20.dp, end = 8.dp)
+            .heightIn(min = 56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = data.visuals.message,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 12.dp),
+            style = screenType(14f, FontWeight.Medium, lineHeight = 20f),
+            color = colors.onSurface,
+        )
+        data.visuals.actionLabel?.let { label ->
+            TextButton(
+                onClick = { data.performAction() },
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = screenType(14f, FontWeight.Bold, lineHeight = 20f),
+                    color = colors.primary,
+                )
+            }
+        }
+    }
+}
+
 /** 28dp on the outside of a group, 4dp between rows (same as the `.list` rule). */
 internal fun segmentShape(index: Int, count: Int): Shape {
     val outer = 28.dp
@@ -729,7 +774,6 @@ internal fun NoteRow(
         onClick = onClick,
         onLongClick = onLongClick,
         shapes = shapes,
-        modifier = Modifier.pressScale(0.98f),
         leadingContent = if (selecting) {
             { SelectDot(selected) }
         } else null,
