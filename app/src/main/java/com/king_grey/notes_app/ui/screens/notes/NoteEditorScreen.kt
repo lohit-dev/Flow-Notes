@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-
 package com.king_grey.notes_app.ui.screens.notes
 
 import android.content.Intent
@@ -8,8 +6,12 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
@@ -27,26 +29,24 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.material3.HorizontalFloatingToolbar
-import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,15 +61,19 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -143,6 +147,7 @@ import com.king_grey.notes_app.ui.screens.folders.TrashIcon
 import com.king_grey.notes_app.ui.screens.folders.strokeIcon
 import com.king_grey.notes_app.ui.screens.shared.Pebble
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -644,7 +649,7 @@ fun NoteEditorScreen(
                                 runCatching {
                                     context.startActivity(
                                         Intent(Intent.ACTION_VIEW, block.url.toUri()).addFlags(
-                                            Intent.FLAG_ACTIVITY_NEW_TASK
+                                            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                                         ),
                                     )
                                 }
@@ -774,56 +779,56 @@ fun NoteEditorScreen(
             // The Material 3 Expressive floating toolbar (vibrant: primaryContainer pill, primary
             // FAB). With the keyboard open, the check FAB sits beside it and closes the keyboard.
             val toolbarItems: @Composable RowScope.() -> Unit = {
-        ToolbarToggle(
-            on = formatOpen,
-            label = "Format",
-            onClick = { formatOpen = !formatOpen }) {
-            Text(
-                text = "Aa",
-                style = screenType(18f, FontWeight.Black, lineHeight = 22f),
-                color = if (formatOpen) colors.onPrimary else colors.onPrimaryContainer,
-            )
-        }
-        ToolbarToggle(
-            on = activeBlock is NoteBlock.Check,
-            label = "Checklist",
-            onClick = ::toggleChecklist
-        ) {
-            Icon(
-                ListIcon, contentDescription = null,
-                tint = if (activeBlock is NoteBlock.Check) colors.onPrimary else colors.onPrimaryContainer,
-            )
-        }
-        ToolbarToggle(
-            on = false,
-            label = "Insert table",
-            onClick = { formatOpen = false; sheet = EditorSheet.Table }) {
-            Icon(
-                TableIcon,
-                contentDescription = null,
-                tint = colors.onPrimaryContainer
-            )
-        }
-        ToolbarToggle(
-            on = false,
-            label = "Add to note",
-            onClick = { formatOpen = false; sheet = EditorSheet.Attach }) {
-            Icon(
-                ClipIcon,
-                contentDescription = null,
-                tint = colors.onPrimaryContainer
-            )
-        }
-        ToolbarToggle(
-            on = false,
-            label = "Draw",
-            onClick = { formatOpen = false; drawingFor = 0L }) {
-            Icon(
-                PenIcon,
-                contentDescription = null,
-                tint = colors.onPrimaryContainer
-            )
-        }
+                ToolbarToggle(
+                    on = formatOpen,
+                    label = "Format",
+                    onClick = { formatOpen = !formatOpen }) {
+                    Text(
+                        text = "Aa",
+                        style = screenType(18f, FontWeight.Black, lineHeight = 22f),
+                        color = if (formatOpen) colors.onPrimary else colors.onPrimaryContainer,
+                    )
+                }
+                ToolbarToggle(
+                    on = activeBlock is NoteBlock.Check,
+                    label = "Checklist",
+                    onClick = ::toggleChecklist
+                ) {
+                    Icon(
+                        ListIcon, contentDescription = null,
+                        tint = if (activeBlock is NoteBlock.Check) colors.onPrimary else colors.onPrimaryContainer,
+                    )
+                }
+                ToolbarToggle(
+                    on = false,
+                    label = "Insert table",
+                    onClick = { formatOpen = false; sheet = EditorSheet.Table }) {
+                    Icon(
+                        TableIcon,
+                        contentDescription = null,
+                        tint = colors.onPrimaryContainer
+                    )
+                }
+                ToolbarToggle(
+                    on = false,
+                    label = "Add to note",
+                    onClick = { formatOpen = false; sheet = EditorSheet.Attach }) {
+                    Icon(
+                        ClipIcon,
+                        contentDescription = null,
+                        tint = colors.onPrimaryContainer
+                    )
+                }
+                ToolbarToggle(
+                    on = false,
+                    label = "Draw",
+                    onClick = { formatOpen = false; drawingFor = 0L }) {
+                    Icon(
+                        PenIcon,
+                        contentDescription = null,
+                        tint = colors.onPrimaryContainer
+                    )
+                }
             }
             if (imeVisible) {
                 HorizontalFloatingToolbar(
@@ -857,7 +862,11 @@ fun NoteEditorScreen(
 
         // The ⋮ menu dims the page (.dim, 18%); the popup is its own window so taps still reach it.
         if (menuOpen) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.18f))
+            )
         }
 
         // ── Drawing, full screen on top ──────────────────────────────────────
@@ -916,13 +925,21 @@ private fun paragraphTextStyle(style: ParagraphStyle, color: Color): TextStyle =
 
 /** Draws inline formatting without changing the text or the cursor positions. */
 private fun spanTransformation(spans: List<InlineSpan>) = VisualTransformation { text ->
-    val length = text.text.length
+    TransformedText(styledText(text.text, spans), OffsetMapping.Identity)
+}
+
+/** [text] with bold / italic / underline / strike applied from [spans]. */
+internal fun styledText(
+    text: String,
+    spans: List<InlineSpan>
+): androidx.compose.ui.text.AnnotatedString {
+    val length = text.length
     val cuts = (spans.flatMap { listOf(it.start, it.end) } + 0 + length)
         .filter { it in 0..length }
         .distinct()
         .sorted()
-    val styled = buildAnnotatedString {
-        append(text.text)
+    return buildAnnotatedString {
+        append(text)
         for (i in 0 until cuts.size - 1) {
             val from = cuts[i]
             val to = cuts[i + 1]
@@ -945,7 +962,6 @@ private fun spanTransformation(spans: List<InlineSpan>) = VisualTransformation {
             )
         }
     }
-    TransformedText(styled, OffsetMapping.Identity)
 }
 
 /**
@@ -1034,6 +1050,28 @@ private fun TextBlockField(
     )
 }
 
+@Composable
+private fun CheckIconAnimation(checked: Boolean, tint: Color) {
+    AnimatedVisibility(
+        visible = checked,
+        enter = scaleIn(
+            FlowMotion.bouncy(),
+            initialScale = 0.2f
+        ) + fadeIn(FlowMotion.effects()),
+        exit = scaleOut(
+            FlowMotion.fastSpatial(),
+            targetScale = 0.2f
+        ) + fadeOut(FlowMotion.effects()),
+    ) {
+        Icon(
+            CheckStrokeIcon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = tint,
+        )
+    }
+}
+
 /** .ck: a 22dp rounded box (filled with a check when done) and its text, struck through when done. */
 @Composable
 private fun CheckRow(
@@ -1055,29 +1093,34 @@ private fun CheckRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
+        // The box rounds off into a circle when ticked, with a spring, and the tick pops in.
+        val corner by animateDpAsState(
+            targetValue = if (block.checked) 11.dp else 6.dp,
+            animationSpec = FlowMotion.bouncy(),
+            label = "check-corner",
+        )
+        val boxShape = RoundedCornerShape(corner.coerceAtLeast(0.dp))
+        val fill by animateColorAsState(
+            targetValue = if (block.checked) colors.primary else Color.Transparent,
+            animationSpec = FlowMotion.effects(),
+            label = "check-fill",
+        )
+        val ring by animateColorAsState(
+            targetValue = if (block.checked) colors.primary else colors.onSurfaceVariant,
+            animationSpec = FlowMotion.effects(),
+            label = "check-ring",
+        )
         Box(
             modifier = Modifier
                 .padding(top = 1.dp)
                 .size(22.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .then(
-                    if (block.checked) {
-                        Modifier.background(colors.primary)
-                    } else {
-                        Modifier.border(2.dp, colors.onSurfaceVariant, RoundedCornerShape(6.dp))
-                    },
-                )
+                .clip(boxShape)
+                .background(fill)
+                .border(2.dp, ring, boxShape)
                 .toggleable(value = block.checked, role = Role.Checkbox, onValueChange = onToggle),
             contentAlignment = Alignment.Center,
         ) {
-            if (block.checked) {
-                Icon(
-                    CheckStrokeIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = colors.onPrimary
-                )
-            }
+            CheckIconAnimation(checked = block.checked, tint = colors.onPrimary)
         }
         val style = screenType(16f, FontWeight.Normal, lineHeight = 22f).copy(
             color = if (block.checked) colors.onSurfaceVariant else colors.onSurface,
@@ -1206,7 +1249,7 @@ private fun BlockFrame(
 
 /** .photo: 200dp, 28dp corners. Decoded off the main thread at about the size it is shown. */
 @Composable
-private fun ImageBlock(uri: String) {
+internal fun ImageBlock(uri: String) {
     val context = LocalContext.current
     val bitmap by produceState<Bitmap?>(initialValue = null, uri) {
         value = withContext(Dispatchers.IO) { decodeBitmap(context, uri.toUri(), maxSide = 1280) }
@@ -1244,7 +1287,7 @@ private fun decodeBitmap(context: android.content.Context, uri: Uri, maxSide: In
 
 /** .lnk: a 64dp tile, the title and the host. */
 @Composable
-private fun LinkCard(block: NoteBlock.Link) {
+internal fun LinkCard(block: NoteBlock.Link) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
@@ -1342,7 +1385,7 @@ private fun TableBlock(
 
 /** A drawing in a note: the strokes, fitted into a 220dp tall card. Tap to edit. */
 @Composable
-private fun DrawingBlock(block: NoteBlock.Drawing) {
+internal fun DrawingBlock(block: NoteBlock.Drawing) {
     val colors = MaterialTheme.colorScheme
     val ink = colors.onSurface
     Box(

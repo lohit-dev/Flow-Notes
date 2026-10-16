@@ -17,8 +17,11 @@ import com.king_grey.notes_app.ui.screens.settings.SortOrder
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val MaxRecentSearches = 8
 
 private val Context.settingsStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -36,6 +39,7 @@ class SettingsDataStore @Inject constructor(
         val SortOrder = stringPreferencesKey("sort_order")
         val NewNoteStart = stringPreferencesKey("new_note_start")
         val ShowPreviews = booleanPreferencesKey("show_previews")
+        val RecentSearches = stringPreferencesKey("recent_searches")
     }
 
     val settings: Flow<UserSettings> = context.settingsStore.data.map { p ->
@@ -50,6 +54,32 @@ class SettingsDataStore @Inject constructor(
             newNoteStart = p[Keys.NewNoteStart].toEnum(d.newNoteStart),
             showPreviews = p[Keys.ShowPreviews] ?: d.showPreviews,
         )
+    }
+
+    /** Newest first, at most [MaxRecentSearches]. Stored as a JSON array in one preference. */
+    val recentSearches: Flow<List<String>> = context.settingsStore.data.map { p ->
+        runCatching {
+            val array = JSONArray(p[Keys.RecentSearches] ?: "[]")
+            (0 until array.length()).map { array.getString(it) }
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun addRecentSearch(term: String) {
+        val clean = term.trim()
+        if (clean.isEmpty()) return
+        context.settingsStore.edit { p ->
+            val current = runCatching {
+                val array = JSONArray(p[Keys.RecentSearches] ?: "[]")
+                (0 until array.length()).map { array.getString(it) }
+            }.getOrDefault(emptyList())
+            val next = (listOf(clean) + current.filterNot { it.equals(clean, ignoreCase = true) })
+                .take(MaxRecentSearches)
+            p[Keys.RecentSearches] = JSONArray(next).toString()
+        }
+    }
+
+    suspend fun clearRecentSearches() {
+        context.settingsStore.edit { it.remove(Keys.RecentSearches) }
     }
 
     suspend fun setAppearance(v: AppearanceMode) = edit { it[Keys.Appearance] = v.name }

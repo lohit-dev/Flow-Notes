@@ -4,6 +4,8 @@ import com.king_grey.notes_app.data.repositories.FoldersRepository
 import com.king_grey.notes_app.data.repositories.FoldersRepositoryImpl
 import com.king_grey.notes_app.data.repositories.NotesRepository
 import com.king_grey.notes_app.data.repositories.NotesRepositoryImpl
+import com.king_grey.notes_app.data.repositories.SearchHistoryRepository
+import com.king_grey.notes_app.data.repositories.SearchHistoryRepositoryImpl
 import com.king_grey.notes_app.data.repositories.SettingsRepository
 import com.king_grey.notes_app.data.repositories.SettingsRepositoryImpl
 import dagger.Binds
@@ -24,4 +26,7 @@ abstract class RepositoryModule {
 
     @Binds @Singleton
     abstract fun bindSettings(impl: SettingsRepositoryImpl): SettingsRepository
+
+    @Binds @Singleton
+    abstract fun bindSearchHistory(impl: SearchHistoryRepositoryImpl): SearchHistoryRepository
 }

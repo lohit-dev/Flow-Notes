@@ -8,7 +8,10 @@ import com.king_grey.notes_app.data.models.UserSettings
 import com.king_grey.notes_app.data.models.isBlank
 import com.king_grey.notes_app.data.repositories.FoldersRepository
 import com.king_grey.notes_app.data.repositories.NotesRepository
+import com.king_grey.notes_app.data.repositories.SearchHistoryRepository
 import com.king_grey.notes_app.data.repositories.SettingsRepository
+import com.king_grey.notes_app.data.storage.AttachmentStore
+import com.king_grey.notes_app.data.storage.attachmentUris
 import com.king_grey.notes_app.navigation.DELETED_RETENTION_DAYS
 import com.king_grey.notes_app.ui.screens.folders.FolderColor
 import com.king_grey.notes_app.ui.screens.notes.NoteBlock
@@ -19,7 +22,10 @@ import com.king_grey.notes_app.ui.screens.settings.NoteSort
 import com.king_grey.notes_app.ui.screens.settings.SortOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import android.graphics.Bitmap
+import android.net.Uri
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -41,6 +47,8 @@ class NotesViewModel @Inject constructor(
     private val notesRepository: NotesRepository,
     private val foldersRepository: FoldersRepository,
     private val settingsRepository: SettingsRepository,
+    private val searchHistory: SearchHistoryRepository,
+    private val attachments: AttachmentStore,
 ) : ViewModel() {
 
     // null until the first value is read from disk, so the UI can wait instead of flashing defaults.
@@ -54,8 +62,16 @@ class NotesViewModel @Inject constructor(
     /** Editor saves run one at a time, in the order they were requested. */
     private val saveLock = Mutex()
 
+    /** Recent searches, newest first. Kept on disk. */
+    val recentSearches: StateFlow<List<String>> = searchHistory.recent
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     init {
-        viewModelScope.launch { notesRepository.purgeExpired(DELETED_RETENTION_DAYS) }
+        viewModelScope.launch {
+            notesRepository.purgeExpired(DELETED_RETENTION_DAYS)
+            // Drop attachment copies that no note refers to any more.
+            attachments.pruneExcept(notesRepository.notes.first().flatMap { it.attachmentUris() }.toSet())
+        }
     }
 
     // ── Notes ────────────────────────────────────────────────────────────────
@@ -94,7 +110,27 @@ class NotesViewModel @Inject constructor(
     fun moveNotes(ids: Collection<Long>, folderId: Long?) = viewModelScope.launch { notesRepository.moveToFolder(ids, folderId) }
     fun trash(ids: Collection<Long>) = viewModelScope.launch { notesRepository.trash(ids) }
     fun restore(ids: Collection<Long>) = viewModelScope.launch { notesRepository.restore(ids) }
-    fun deleteForever(ids: Collection<Long>) = viewModelScope.launch { notesRepository.deleteForever(ids) }
+    fun deleteForever(ids: Collection<Long>) = viewModelScope.launch {
+        val files = ids.mapNotNull { notesRepository.get(it) }.flatMap { it.attachmentUris() }
+        notesRepository.deleteForever(ids)
+        attachments.delete(files)
+    }
+
+    // ── Attachments ──────────────────────────────────────────────────────────
+
+    /** Copies a picked file into app storage. [onDone] gets the stored URI, or null if it could not be read. */
+    fun importAttachment(source: Uri, displayName: String?, mimeType: String?, onDone: (String?) -> Unit) {
+        viewModelScope.launch { onDone(attachments.import(source, displayName, mimeType)) }
+    }
+
+    fun saveCameraImage(bitmap: Bitmap, onDone: (String?) -> Unit) {
+        viewModelScope.launch { onDone(attachments.saveBitmap(bitmap)) }
+    }
+
+    // ── Search history ───────────────────────────────────────────────────────
+
+    fun addRecentSearch(term: String) = viewModelScope.launch { searchHistory.add(term) }
+    fun clearRecentSearches() = viewModelScope.launch { searchHistory.clear() }
 
     // ── Folders ──────────────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@
 
 package com.king_grey.notes_app.ui.screens.folders
 
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -293,8 +294,8 @@ fun FoldersScreen(
             // empty state (the empty state has its own New folder button).
             AnimatedVisibility(
                 visible = !editing && state.folders.isNotEmpty(),
-                enter = scaleIn(tween(200)) + fadeIn(tween(200)),
-                exit = scaleOut(tween(150)) + fadeOut(tween(150)),
+                enter = scaleIn(FlowMotion.bouncy(), initialScale = 0.3f) + fadeIn(FlowMotion.effects()),
+                exit = scaleOut(FlowMotion.fastSpatial(), targetScale = 0.3f) + fadeOut(FlowMotion.effects()),
             ) {
                 FloatingActionButton(
                     onClick = { dialog = FolderDialog.Create },

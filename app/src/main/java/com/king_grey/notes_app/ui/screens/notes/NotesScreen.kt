@@ -1,5 +1,10 @@
 package com.king_grey.notes_app.ui.screens.notes
 
+import com.king_grey.notes_app.ui.theme.pressScale
+import com.king_grey.notes_app.ui.theme.FlowMotion
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -322,7 +327,11 @@ fun NotesScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            AnimatedVisibility(visible = selecting, enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(
+                visible = selecting,
+                enter = fadeIn(FlowMotion.effects()) + slideInVertically(FlowMotion.spatial()) { -it / 2 },
+                exit = fadeOut(FlowMotion.effects()) + slideOutVertically(FlowMotion.fastSpatial()) { -it / 2 },
+            ) {
                 SelectBar(
                     count = selected.size,
                     onClose = ::exitSelect,
@@ -336,7 +345,11 @@ fun NotesScreen(
         },
         floatingActionButton = {
             // The empty screen in the mockup has no FAB: its own "New note" button is the action.
-            if (!selecting && !(allNotes.isEmpty() && state.folders.isEmpty())) {
+            AnimatedVisibility(
+                visible = !selecting && !(allNotes.isEmpty() && state.folders.isEmpty()),
+                enter = scaleIn(FlowMotion.bouncy(), initialScale = 0.3f) + fadeIn(FlowMotion.effects()),
+                exit = scaleOut(FlowMotion.fastSpatial(), targetScale = 0.3f) + fadeOut(FlowMotion.effects()),
+            ) {
                 NewFabMenu(
                     open = fabOpen,
                     onOpenChange = { fabOpen = it },
@@ -349,8 +362,8 @@ fun NotesScreen(
         bottomBar = {
             AnimatedVisibility(
                 visible = selecting,
-                enter = fadeIn() + slideInVertically(tween(200)) { it / 2 },
-                exit = fadeOut() + slideOutVertically(tween(150)) { it / 2 },
+                enter = fadeIn(FlowMotion.effects()) + slideInVertically(FlowMotion.spatial()) { it / 2 },
+                exit = fadeOut(FlowMotion.effects()) + slideOutVertically(FlowMotion.fastSpatial()) { it / 2 },
             ) {
                 SelectToolbar(
                     enabled = selected.isNotEmpty(),
@@ -444,8 +457,8 @@ fun NotesScreen(
             // ── New menu: scrim + three pills above the FAB ─────────────────
             AnimatedVisibility(
                 visible = fabOpen,
-                enter = fadeIn(tween(150)),
-                exit = fadeOut(tween(120)),
+                enter = fadeIn(FlowMotion.effects()),
+                exit = fadeOut(FlowMotion.effects()),
             ) {
                 Box(
                     modifier = Modifier
@@ -611,6 +624,7 @@ private fun NotesList(
                     text = section.title,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .animateItem()
                         .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 10.dp)
                         .semantics { heading() },
                     style = screenType(20f, FontWeight.Bold, lineHeight = 24f),
@@ -686,6 +700,7 @@ internal fun NoteRow(
         onClick = onClick,
         onLongClick = onLongClick,
         shapes = shapes,
+        modifier = Modifier.pressScale(0.98f),
         leadingContent = if (selecting) {
             { SelectDot(selected) }
         } else null,
@@ -873,6 +888,7 @@ private fun NotesGrid(
                 selected = note.id in selected,
                 onClick = { onOpen(note) },
                 onLongClick = { onLongPress(note) },
+                modifier = Modifier.animateItem(),
             )
         }
     }
@@ -886,18 +902,21 @@ private fun NoteCard(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val container = when {
-        selected -> colors.primaryContainer
-        else -> colors.surfaceContainer
-    }
+    val container by animateColorAsState(
+        targetValue = if (selected) colors.primaryContainer else colors.surfaceContainer,
+        animationSpec = FlowMotion.effects(),
+        label = "card-container",
+    )
     val content = if (selected) colors.onPrimaryContainer else colors.onSurface
     val muted = if (selected) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.onSurfaceVariant
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .pressScale(0.97f)
             .clip(RoundedCornerShape(24.dp))
             .background(container)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)

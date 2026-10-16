@@ -1,5 +1,6 @@
 package com.king_grey.notes_app.ui.screens.settings
 
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -459,7 +460,7 @@ private fun AccentRow(
 /** .ac: 40dp circle that squares off to a 14dp corner and shows a white check when selected. */
 @Composable
 private fun AccentSwatch(accent: AccentColor, selected: Boolean, onClick: () -> Unit) {
-    val corner by animateDpAsState(if (selected) 14.dp else 20.dp, label = "accent-corner")
+    val corner by animateDpAsState(if (selected) 14.dp else 20.dp, FlowMotion.bouncy(), label = "accent-corner")
     Box(
         modifier = Modifier
             .size(40.dp)

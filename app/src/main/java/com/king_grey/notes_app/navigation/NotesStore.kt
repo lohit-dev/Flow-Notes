@@ -81,8 +81,9 @@ fun Note.toDeletedNote(now: Long = System.currentTimeMillis()): DeletedNote {
         id = id,
         title = displayTitle,
         daysLeft = (DELETED_RETENTION_DAYS - gone).coerceIn(0, DELETED_RETENTION_DAYS),
-        dateLabel = listDateLabel(editedAt, now),
+        dateLabel = editorDateLabel(editedAt),
         body = preview,
+        blocks = blocks,
     )
 }
 

@@ -1,6 +1,13 @@
 package com.king_grey.notes_app.ui.screens.folders
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -45,6 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.heading
@@ -52,9 +65,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.toPath
+import com.king_grey.notes_app.ui.screens.notes.NoteBlock
+import com.king_grey.notes_app.ui.screens.notes.ReadOnlyBlocks
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +92,8 @@ data class DeletedNote(
     val daysLeft: Int,
     val dateLabel: String = "",
     val body: String = "",
+    /** The full content for the read-only note. When empty, [body] is shown as plain paragraphs. */
+    val blocks: List<NoteBlock> = emptyList(),
 )
 
 data class RecentlyDeletedUiState(val notes: List<DeletedNote> = emptyList())
@@ -285,7 +307,6 @@ fun RecentlyDeletedScreen(
 }
 
 /** .li.ni in Recently deleted: title, "Deletes in N days", and a primary-colored restore button. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DeletedRow(
     note: DeletedNote,
@@ -338,29 +359,84 @@ private fun DeletedRow(
     ) { RowName(note.title) }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun Morph.toShape(progress: Float): Shape {
+    return remember(this, progress) {
+        object : Shape {
+            private val matrix = Matrix()
+            override fun createOutline(
+                size: Size,
+                layoutDirection: LayoutDirection,
+                density: Density
+            ): Outline {
+                matrix.reset()
+                matrix.scale(size.width / 2f, size.height / 2f)
+                matrix.translate(1f, 1f)
+                val path = toPath(progress = progress).asComposePath()
+                path.transform(matrix)
+                return Outline.Generic(path)
+            }
+        }
+    }
+}
+
 /** .sk: the 24dp selection circle. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SelectDot(selected: Boolean) {
     val colors = MaterialTheme.colorScheme
+    // The circle morphs into a scalloped cookie when selected, with a springy pop.
+    val morph = remember { Morph(MaterialShapes.Circle, MaterialShapes.Cookie9Sided) }
+    val progress by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = FlowMotion.spatial(),
+        label = "select-morph",
+    )
+    val shape = morph.toShape(progress.coerceIn(0f, 1f))
+    val fill by animateColorAsState(
+        targetValue = if (selected) colors.primary else Color.Transparent,
+        animationSpec = FlowMotion.effects(),
+        label = "select-fill",
+    )
+    val ring by animateColorAsState(
+        targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
+        animationSpec = FlowMotion.effects(),
+        label = "select-ring",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.08f else 1f,
+        animationSpec = FlowMotion.bouncy(),
+        label = "select-scale",
+    )
     Box(
         modifier = Modifier
             .size(24.dp)
-            .clip(CircleShape)
-            .then(
-                if (selected) {
-                    Modifier.background(colors.primary)
-                } else {
-                    Modifier.border(2.dp, colors.onSurfaceVariant, CircleShape)
-                },
-            ),
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .background(fill)
+            .border(2.dp, ring, shape),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
+        AnimatedVisibility(
+            visible = selected,
+            enter = scaleIn(
+                FlowMotion.bouncy(),
+                initialScale = 0.2f
+            ) + fadeIn(FlowMotion.effects()),
+            exit = scaleOut(
+                FlowMotion.fastSpatial(),
+                targetScale = 0.2f
+            ) + fadeOut(FlowMotion.effects()),
+        ) {
             Icon(
                 CheckStrokeIcon,
                 contentDescription = "Selected",
                 modifier = Modifier.size(16.dp),
-                tint = colors.onPrimary
+                tint = colors.onPrimary,
             )
         }
     }
@@ -445,9 +521,9 @@ private fun PairButton(
     icon: ImageVector,
     onClick: () -> Unit,
     enabled: Boolean,
-    container: androidx.compose.ui.graphics.Color,
-    content: androidx.compose.ui.graphics.Color,
-    shape: androidx.compose.ui.graphics.Shape,
+    container: Color,
+    content: Color,
+    shape: Shape,
     modifier: Modifier = Modifier,
 ) {
     Button(
@@ -592,13 +668,17 @@ fun DeletedNoteScreen(
                 style = screenType(34f, FontWeight.Black, lineHeight = 37f, letterSpacing = -0.6f),
                 color = colors.onSurface,
             )
-            note.body.split("\n\n").filter { it.isNotBlank() }.forEach { paragraph ->
-                Text(
-                    text = paragraph,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                    style = screenType(16f, FontWeight.Normal, lineHeight = 25f),
-                    color = colors.onSurface,
-                )
+            if (note.blocks.isNotEmpty()) {
+                ReadOnlyBlocks(note.blocks)
+            } else {
+                note.body.split("\n\n").filter { it.isNotBlank() }.forEach { paragraph ->
+                    Text(
+                        text = paragraph,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                        style = screenType(16f, FontWeight.Normal, lineHeight = 25f),
+                        color = colors.onSurface,
+                    )
+                }
             }
         }
     }

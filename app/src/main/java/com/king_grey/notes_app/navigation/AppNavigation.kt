@@ -2,13 +2,18 @@ package com.king_grey.notes_app.navigation
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -25,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +59,7 @@ import com.king_grey.notes_app.ui.screens.folders.FolderColor
 import com.king_grey.notes_app.ui.screens.folders.FolderDetailScreen
 import com.king_grey.notes_app.ui.screens.folders.FolderDetailUiState
 import com.king_grey.notes_app.ui.screens.folders.FolderItem
+import com.king_grey.notes_app.ui.screens.folders.DeletedNoteScreen
 import com.king_grey.notes_app.ui.screens.folders.FoldersScreen
 import com.king_grey.notes_app.ui.screens.folders.FoldersUiState
 import com.king_grey.notes_app.ui.screens.folders.RecentlyDeletedScreen
@@ -73,12 +80,13 @@ import com.king_grey.notes_app.ui.screens.settings.AppearanceMode
 import com.king_grey.notes_app.ui.screens.settings.NewNoteStart
 import com.king_grey.notes_app.ui.screens.settings.PrivacyPolicyScreen
 import com.king_grey.notes_app.ui.screens.settings.SettingsScreen
+import com.king_grey.notes_app.ui.screens.settings.SortSheet
 import com.king_grey.notes_app.ui.screens.settings.SettingsSheet
 import com.king_grey.notes_app.ui.screens.settings.SettingsUiState
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesPalette
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
-import java.io.File
 
 private data class TopLevelDestination(
     val route: AppDestination,
@@ -107,6 +115,7 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     val storedNotes by viewModel.notes.collectAsStateWithLifecycle()
     val storedFolders by viewModel.folders.collectAsStateWithLifecycle()
     val storedSettings by viewModel.settings.collectAsStateWithLifecycle()
+    val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
     var openSheet by remember { mutableStateOf(SettingsSheet.None) }
     var dragOrder by remember { mutableStateOf<List<Long>?>(null) }
 
@@ -139,7 +148,7 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     var editorState by remember { mutableStateOf(NoteEditorUiState(noteId = 0L, isNew = true)) }
     var searchQuery by remember { mutableStateOf("") }
     var searchFolderId by remember { mutableStateOf<Long?>(null) }
-    var recentSearches by remember { mutableStateOf(emptyList<String>()) }
+    var showFolderSort by remember { mutableStateOf(false) }
 
     // ── Derived from the store ───────────────────────────────────────────────
     // Functions, not vals: NavDisplay keeps each entry's lambda, so a value computed here would
@@ -264,36 +273,28 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
             ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }.getOrNull()
 
-    fun saveBitmap(bitmap: Bitmap): String {
-        val dir = File(context.filesDir, "note_images").apply { mkdirs() }
-        val file = File(dir, "img_${System.currentTimeMillis()}.jpg")
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 92, it) }
-        return Uri.fromFile(file).toString()
-    }
-
+    // Every attachment is copied into the app's own storage first (see AttachmentStore), so notes
+    // keep working after the picker grant or the source file goes away.
     val photoPicker =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            if (uri != null) appendBlock { NoteBlock.Image(it, uri.toString()) }
+            if (uri != null) {
+                viewModel.importAttachment(uri, displayName(uri), context.contentResolver.getType(uri)) { stored ->
+                    if (stored != null) appendBlock { NoteBlock.Image(it, stored) }
+                }
+            }
         }
     val filePicker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                }
                 val mime = context.contentResolver.getType(uri)
-                if (mime != null && mime.startsWith("image/")) {
-                    appendBlock { NoteBlock.Image(it, uri.toString()) }
-                } else {
-                    appendBlock {
-                        NoteBlock.Link(
-                            it,
-                            displayName(uri) ?: "File",
-                            mime ?: "File",
-                            uri.toString()
-                        )
+                val name = displayName(uri)
+                viewModel.importAttachment(uri, name, mime) { stored ->
+                    if (stored != null) {
+                        if (mime != null && mime.startsWith("image/")) {
+                            appendBlock { NoteBlock.Image(it, stored) }
+                        } else {
+                            appendBlock { NoteBlock.Link(it, name ?: "File", mime ?: "File", stored) }
+                        }
                     }
                 }
             }
@@ -302,15 +303,20 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
         ActivityResultContracts.TakePicturePreview(),
     ) { bitmap ->
         if (bitmap != null) {
-            val uri = saveBitmap(bitmap)
-            appendBlock { NoteBlock.Image(it, uri) }
+            viewModel.saveCameraImage(bitmap) { stored ->
+                if (stored != null) appendBlock { NoteBlock.Image(it, stored) }
+            }
         }
     }
     val voiceRecorder = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         val uri = result.data?.data
-        if (uri != null) appendBlock { NoteBlock.Link(it, "Voice memo", "Audio", uri.toString()) }
+        if (uri != null) {
+            viewModel.importAttachment(uri, "Voice memo.m4a", context.contentResolver.getType(uri)) { stored ->
+                if (stored != null) appendBlock { NoteBlock.Link(it, "Voice memo", "Audio", stored) }
+            }
+        }
     }
 
     // ── Theme ────────────────────────────────────────────────────────────────
@@ -400,6 +406,21 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                 NavDisplay(
                     backStack = backStack,
                     onBack = { popBack() },
+                    // Tabs cross-fade with a small scale; going deeper slides in from the right
+                    // and back slides out again, all on springs (see FlowMotion).
+                    transitionSpec = {
+                        if (backStack.lastOrNull()?.let { top -> topLevelDestinations.any { it.route == top } } == true) {
+                            (fadeIn(FlowMotion.effects()) + scaleIn(FlowMotion.spatial(), initialScale = 0.96f)) togetherWith
+                                fadeOut(FlowMotion.effects())
+                        } else {
+                            (slideInHorizontally(FlowMotion.spatial()) { it / 4 } + fadeIn(FlowMotion.effects())) togetherWith
+                                (slideOutHorizontally(FlowMotion.spatial()) { -it / 6 } + fadeOut(FlowMotion.effects()))
+                        }
+                    },
+                    popTransitionSpec = {
+                        (slideInHorizontally(FlowMotion.spatial()) { -it / 6 } + fadeIn(FlowMotion.effects())) togetherWith
+                            (slideOutHorizontally(FlowMotion.spatial()) { it / 4 } + fadeOut(FlowMotion.effects()))
+                    },
                     entryProvider = { key ->
                         when (key) {
                             AppDestination.Notes -> NavEntry(key) {
@@ -459,20 +480,9 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                                     onBack = { popBack() },
                                     onQueryChange = { searchQuery = it },
                                     onFolderFilter = { searchFolderId = it },
-                                    onSubmit = { submitted ->
-                                        val term = submitted.trim()
-                                        if (term.isNotEmpty()) {
-                                            recentSearches = (listOf(term) +
-                                                    recentSearches.filterNot {
-                                                        it.equals(
-                                                            term,
-                                                            true
-                                                        )
-                                                    }).take(8)
-                                        }
-                                    },
+                                    onSubmit = { submitted -> viewModel.addRecentSearch(submitted) },
                                     onOpenNote = { note -> openNote(note.id) },
-                                    onClearRecent = { recentSearches = emptyList() },
+                                    onClearRecent = { viewModel.clearRecentSearches() },
                                 )
 
                             }
@@ -566,6 +576,14 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                                         settings().sort,
                                         settings().sortOrder,
                                     ).map { it.toFolderNote() }
+                                    if (showFolderSort) {
+                                        SortSheet(
+                                            sort = settings().sort,
+                                            order = settings().sortOrder,
+                                            onSave = { sort, order -> viewModel.setSort(sort, order) },
+                                            onDismiss = { showFolderSort = false },
+                                        )
+                                    }
                                     FolderDetailScreen(
                                         state = FolderDetailUiState(
                                             folder = folder,
@@ -581,7 +599,7 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                                         onColorChange = { newColor ->
                                             viewModel.setFolderColor(folderId, newColor)
                                         },
-                                        onSortNotes = {},
+                                        onSortNotes = { showFolderSort = true },
                                         onDeleteFolder = { deleteNotes ->
                                             deleteFolder(folderId, deleteNotes)
                                             popBack()
@@ -597,11 +615,32 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                                         notes = trashedNotes().map { it.toDeletedNote() },
                                     ),
                                     onBack = { popBack() },
-                                    onOpenNote = { _ -> },
+                                    onOpenNote = { note -> backStack.add(AppDestination.DeletedNotePreview(note.id)) },
                                     onRestore = { ids -> viewModel.restore(ids) },
                                     onDeleteForever = { ids -> viewModel.deleteForever(ids) },
                                 )
 
+                            }
+
+                            is AppDestination.DeletedNotePreview -> NavEntry(key) {
+                                val note = trashedNotes().firstOrNull { it.id == key.noteId }
+                                if (note == null) {
+                                    // Restored or deleted from here: nothing left to show.
+                                    LaunchedEffect(Unit) { popBack() }
+                                } else {
+                                    DeletedNoteScreen(
+                                        note = note.toDeletedNote(),
+                                        onBack = { popBack() },
+                                        onRestore = {
+                                            viewModel.restore(listOf(note.id))
+                                            popBack()
+                                        },
+                                        onDeleteForever = {
+                                            viewModel.deleteForever(listOf(note.id))
+                                            popBack()
+                                        },
+                                    )
+                                }
                             }
 
                             AppDestination.Settings -> NavEntry(key) {
