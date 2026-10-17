@@ -38,7 +38,6 @@ data class NoteDraft(
     val title: String,
     val blocks: List<NoteBlock>,
     val pinned: Boolean,
-    val locked: Boolean,
     val folderId: Long?,
 )
 
@@ -87,7 +86,6 @@ class NotesViewModel @Inject constructor(
                     title = draft.title,
                     blocks = draft.blocks,
                     pinned = draft.pinned,
-                    locked = draft.locked,
                     folderId = draft.folderId,
                     editedAt = if (changed) now else existing!!.editedAt,
                 )

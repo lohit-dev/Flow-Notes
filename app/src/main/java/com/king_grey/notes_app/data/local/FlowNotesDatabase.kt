@@ -10,7 +10,7 @@ import com.king_grey.notes_app.data.local.entity.NoteEntity
 
 @Database(
     entities = [NoteEntity::class, FolderEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -20,5 +20,7 @@ abstract class FlowNotesDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "flow_notes.db"
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2)
     }
 }

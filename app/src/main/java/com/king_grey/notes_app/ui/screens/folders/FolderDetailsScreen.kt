@@ -1,5 +1,13 @@
 package com.king_grey.notes_app.ui.screens.folders
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +54,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +66,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -66,10 +77,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.king_grey.notes_app.ui.screens.shared.FlowNotesLargeTopAppBar
 import com.king_grey.notes_app.ui.screens.shared.Pebble
 import com.king_grey.notes_app.ui.screens.shared.screenType
+import com.king_grey.notes_app.ui.theme.FlowMotion
 import com.king_grey.notes_app.ui.theme.FlowNotesTheme
 import kotlinx.coroutines.launch
 
@@ -511,6 +524,101 @@ internal fun ComposeFab(onClick: () -> Unit) {
 }
 
 /**
+ * The blob with an icon and the small accent shape on its corner. It is alive: it pops in with a
+ * spring, the blob turns slowly and breathes while the icon stays upright, and the accent turns
+ * the other way and bobs.
+ */
+@Composable
+internal fun EmptyArt(
+    art: Shape,
+    accent: Shape,
+    icon: ImageVector,
+    size: Dp,
+    iconSize: Dp,
+    accentSize: Dp,
+    accentOffsetX: Dp,
+    accentOffsetY: Dp,
+) {
+    val colors = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val loop = rememberInfiniteTransition(label = "empty-art")
+    val spin by loop.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(30_000, easing = LinearEasing)),
+        label = "spin",
+    )
+    val spinBack by loop.animateFloat(
+        initialValue = 0f,
+        targetValue = -360f,
+        animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing)),
+        label = "spin-back",
+    )
+    val breathe by loop.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            tween(2_600, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "breathe",
+    )
+    val bob by loop.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            tween(2_000, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "bob",
+    )
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, FlowMotion.bouncy()) }
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .graphicsLayer {
+                scaleX = enter.value
+                scaleY = enter.value
+            },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = spin
+                    scaleX = breathe
+                    scaleY = breathe
+                }
+                .clip(art)
+                .background(colors.primaryContainer),
+        )
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier
+                .size(iconSize)
+                .align(Alignment.Center),
+            tint = colors.onPrimaryContainer,
+        )
+        Box(
+            modifier = Modifier
+                .size(accentSize)
+                .align(Alignment.TopEnd)
+                .offset(x = accentOffsetX, y = accentOffsetY)
+                .graphicsLayer {
+                    rotationZ = spinBack
+                    translationY = with(density) { bob.dp.toPx() }
+                }
+                .clip(accent)
+                .background(colors.tertiaryContainer)
+                .border(3.dp, colors.background, accent),
+        )
+    }
+}
+
+/**
  * .es: a 168dp blob with an icon on it, a small accent shape on the corner, title, text and an
  * optional pill button. Used by the empty folder and the empty Recently deleted.
  */
@@ -534,31 +642,16 @@ internal fun EmptyBlock(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(modifier = Modifier.size(if (compact) 124.dp else 168.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(art)
-                    .background(colors.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(if (compact) 44.dp else 60.dp),
-                    tint = colors.onPrimaryContainer
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(54.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-2).dp)
-                    .clip(accent)
-                    .background(colors.tertiaryContainer)
-                    .border(3.dp, colors.background, accent),
-            )
-        }
+        EmptyArt(
+            art = art,
+            accent = accent,
+            icon = icon,
+            size = if (compact) 124.dp else 168.dp,
+            iconSize = if (compact) 44.dp else 60.dp,
+            accentSize = 54.dp,
+            accentOffsetX = 4.dp,
+            accentOffsetY = (-2).dp,
+        )
         Spacer(Modifier.height(if (compact) 16.dp else 22.dp))
         Text(
             text = title,

@@ -50,6 +50,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -510,6 +511,9 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
         steps = TextSizeMax - TextSizeMin - 1,
         trackRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
     )
+    LaunchedEffect(clamped) {
+        sliderState.value = clamped.toFloat()
+    }
 
     ListItem(
         shapes = shapes,

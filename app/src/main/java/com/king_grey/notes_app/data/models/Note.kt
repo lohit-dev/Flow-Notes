@@ -10,7 +10,6 @@ data class Note(
     val blocks: List<NoteBlock> = emptyList(),
     val folderId: Long? = null,
     val pinned: Boolean = false,
-    val locked: Boolean = false,
     val createdAt: Long,
     val editedAt: Long = createdAt,
     /** Non-null while the note sits in Recently deleted. */

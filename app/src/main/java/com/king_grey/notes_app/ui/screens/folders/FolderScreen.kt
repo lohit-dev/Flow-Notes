@@ -718,31 +718,16 @@ private fun EmptyFolders(onNewFolder: () -> Unit, modifier: Modifier = Modifier)
         verticalArrangement = Arrangement.Center,
     ) {
         // .art: a flower blob with the icon on it and a small sunny shape on the corner
-        Box(modifier = Modifier.size(124.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(MaterialShapes.Flower.toShape())
-                    .background(colors.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    FolderPlusIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(44.dp),
-                    tint = colors.onPrimaryContainer,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(58.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-6).dp)
-                    .clip(MaterialShapes.Sunny.toShape())
-                    .background(colors.tertiaryContainer)
-                    .border(3.dp, colors.background, MaterialShapes.Sunny.toShape()),
-            )
-        }
+        EmptyArt(
+            art = MaterialShapes.Flower.toShape(),
+            accent = MaterialShapes.Sunny.toShape(),
+            icon = FolderPlusIcon,
+            size = 124.dp,
+            iconSize = 44.dp,
+            accentSize = 58.dp,
+            accentOffsetX = 6.dp,
+            accentOffsetY = (-6).dp,
+        )
         Text(
             text = "Sort notes into folders",
             modifier = Modifier.padding(top = 16.dp),

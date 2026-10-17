@@ -28,7 +28,6 @@ data class NoteEntity(
     @ColumnInfo(name = "blocks_json") val blocksJson: String,
     @ColumnInfo(name = "folder_id") val folderId: Long?,
     val pinned: Boolean,
-    val locked: Boolean,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "edited_at") val editedAt: Long,
     @ColumnInfo(name = "deleted_at") val deletedAt: Long?,

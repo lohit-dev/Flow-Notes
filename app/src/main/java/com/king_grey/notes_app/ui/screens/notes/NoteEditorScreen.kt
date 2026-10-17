@@ -172,7 +172,6 @@ data class NoteEditorUiState(
     /** "1 October 2026 at 2:09 PM". */
     val dateLabel: String = "",
     val pinned: Boolean = false,
-    val locked: Boolean = false,
     val folders: List<FolderItem> = emptyList(),
     val folderId: Long? = null,
     /** A note that was just created: the keyboard opens on the title, or on the checklist row. */
@@ -203,14 +202,13 @@ internal const val DrawingAspect = 320f / 380f
  *
  * Bottom floating toolbar: Aa (format popup), checklist, table, attach (camera, photos, files,
  * scan, voice memo, link) and draw. With the keyboard open a check button closes it. The ⋮ menu has
- * Share, Pin, Move to folder, Lock and Delete.
+ * Share, Pin, Move to folder and Delete.
  *
  * Rules worth knowing: Enter splits a block (on an empty checklist row it ends the list);
  * Backspace at the start of a block turns a checklist row or heading back into body text, then
  * joins it with the block above. Long press a photo, link, table or drawing to remove it.
  *
- * Locking needs the system biometric prompt, so it is the host's: see [authenticate] in
- * NoteLock.kt. [onDelete] means "move to Recently deleted" and the host should pop back.
+ * [onDelete] means "move to Recently deleted" and the host should pop back.
  */
 @OptIn(
     ExperimentalLayoutApi::class,
@@ -225,7 +223,6 @@ fun NoteEditorScreen(
     onTogglePin: () -> Unit = {},
     onMoveToFolder: (folderId: Long) -> Unit = {},
     onCreateFolderAndMove: (name: String) -> Unit = {},
-    onToggleLock: () -> Unit = {},
     onDelete: () -> Unit = {},
     onAttach: (AttachKind) -> Unit = {},
 ) {
@@ -238,7 +235,6 @@ fun NoteEditorScreen(
     val currentBlocks by rememberUpdatedState(blocks)
 
     var menuOpen by remember { mutableStateOf(false) }
-    var lockConfirm by remember { mutableStateOf(false) }
     var formatOpen by remember { mutableStateOf(false) }
     var sheet by rememberSaveable { mutableStateOf(EditorSheet.None) }
     var dialog by rememberSaveable { mutableStateOf(EditorDialog.None) }
@@ -508,40 +504,6 @@ fun NoteEditorScreen(
 
     BackHandler(enabled = formatOpen) { formatOpen = false }
 
-    if (lockConfirm) {
-        com.king_grey.notes_app.ui.screens.folders.DialogFrame(
-            icon = LockIcon,
-            isError = false,
-            title = "Lock this note?",
-            onDismiss = { lockConfirm = false },
-        ) {
-            Text(
-                text = "You will need your fingerprint, face or screen lock to open it.",
-                modifier = Modifier.fillMaxWidth(),
-                style = screenType(15f, FontWeight.Normal, lineHeight = 22f),
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Column(
-                modifier = Modifier.padding(top = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                com.king_grey.notes_app.ui.screens.folders.DialogButton(
-                    text = "Lock",
-                    onClick = { lockConfirm = false; onToggleLock() },
-                    container = colors.primary,
-                    content = colors.onPrimary,
-                )
-                com.king_grey.notes_app.ui.screens.folders.DialogButton(
-                    text = "Cancel",
-                    onClick = { lockConfirm = false },
-                    container = colors.secondaryContainer,
-                    content = colors.onSecondaryContainer,
-                )
-            }
-        }
-    }
-
     // The mockup: status bar, then the 64dp bar, then the page starts 72dp below the bar's top.
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -723,13 +685,6 @@ fun NoteEditorScreen(
                         "Move to folder",
                         MoveIcon,
                         { menuOpen = false; sheet = EditorSheet.Move })
-                    MenuRow(
-                        if (state.locked) "Unlock note" else "Lock note",
-                        LockIcon,
-                        {
-                            menuOpen = false
-                            if (state.locked) onToggleLock() else lockConfirm = true
-                        })
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         color = colors.outlineVariant,
@@ -1847,12 +1802,6 @@ private val ClipIcon by lazy {
     strokeIcon(
         "Clip",
         "m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14 9"
-    )
-}
-private val LockIcon by lazy {
-    strokeIcon(
-        "Lock",
-        "M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM8 11V8a4 4 0 0 1 8 0v3"
     )
 }
 private val MicIcon by lazy {

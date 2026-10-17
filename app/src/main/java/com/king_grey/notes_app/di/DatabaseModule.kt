@@ -19,7 +19,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): FlowNotesDatabase =
-        Room.databaseBuilder(context, FlowNotesDatabase::class.java, FlowNotesDatabase.NAME).build()
+        Room.databaseBuilder(context, FlowNotesDatabase::class.java, FlowNotesDatabase.NAME)
+            .addMigrations(*FlowNotesDatabase.MIGRATIONS)
+            .build()
 
     @Provides
     fun provideNoteDao(db: FlowNotesDatabase): NoteDao = db.noteDao()

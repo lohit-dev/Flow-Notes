@@ -140,10 +140,7 @@ fun SearchScreen(
     // The native Material 3 search bar, always expanded: this screen is the expanded state of the
     // Notes search pill. Collapsing it (its back arrow or system back) leaves the screen.
     val textFieldState = rememberTextFieldState(initialQuery)
-    // Starts collapsed and animates open, so the native expand animation plays on entry.
-    val searchBarState = rememberSearchBarState(initialValue = SearchBarValue.Collapsed)
-    var opened by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    val searchBarState = rememberSearchBarState(initialValue = SearchBarValue.Expanded)
     val query = textFieldState.text.toString()
     fun setQuery(value: String) = textFieldState.setTextAndPlaceCursorAtEnd(value)
     val focus = remember { FocusRequester() }
@@ -153,16 +150,11 @@ fun SearchScreen(
 
     LaunchedEffect(query) { currentOnQueryChange(query) }
     LaunchedEffect(searchBarState) {
-        searchBarState.animateToExpanded()
-        opened = true
-    }
-    // Leave once the collapse animation (back arrow or system back) has finished.
-    LaunchedEffect(searchBarState) {
-        snapshotFlow { searchBarState.currentValue }.collect {
-            if (opened && it == SearchBarValue.Collapsed) currentOnBack()
+        snapshotFlow { searchBarState.targetValue }.collect {
+            if (it == SearchBarValue.Collapsed) currentOnBack()
         }
     }
-    LaunchedEffect(opened) { if (opened && query.isEmpty()) focus.requestFocus() }
+    LaunchedEffect(Unit) { if (query.isEmpty()) focus.requestFocus() }
 
     val voice = rememberVoiceSearch { heard ->
         setQuery(heard)
@@ -183,7 +175,7 @@ fun SearchScreen(
                 )
             },
             leadingIcon = {
-                IconButton(onClick = { scope.launch { searchBarState.animateToCollapsed() } }) {
+                IconButton(onClick = onBack) {
                     Icon(BackIcon, contentDescription = "Back")
                 }
             },
