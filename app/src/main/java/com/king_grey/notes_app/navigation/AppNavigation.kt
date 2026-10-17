@@ -1,5 +1,7 @@
 package com.king_grey.notes_app.navigation
 
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -31,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -127,21 +130,26 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     }
 
     // Read through a function, not a captured value: NavDisplay keeps each entry's lambda, so
-    // anything read here at composition time would be frozen when the entry was created.
-    fun settings(): SettingsUiState {
-        val s = storedSettings ?: loadedSettings
-        return SettingsUiState(
-            appearance = s.appearance,
-            accent = s.accent,
-            dynamicColor = s.dynamicColor,
-            textSize = s.textSize,
-            sort = s.sort,
-            sortOrder = s.sortOrder,
-            newNoteStart = s.newNoteStart,
-            showPreviews = s.showPreviews,
-            openSheet = openSheet,
-        )
+    // anything read here at composition time would be frozen when the entry was created. The
+    // values behind the functions are derivedStateOf, so they are worked out once per change in
+    // the data and not on every recomposition.
+    val settingsUi by remember {
+        derivedStateOf {
+            val s = storedSettings ?: loadedSettings
+            SettingsUiState(
+                appearance = s.appearance,
+                accent = s.accent,
+                dynamicColor = s.dynamicColor,
+                textSize = s.textSize,
+                sort = s.sort,
+                sortOrder = s.sortOrder,
+                newNoteStart = s.newNoteStart,
+                showPreviews = s.showPreviews,
+                openSheet = openSheet,
+            )
+        }
     }
+    fun settings(): SettingsUiState = settingsUi
     var selectedFolder by remember { mutableStateOf<Long?>(null) }
     var fabMenuOpen by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(NotesViewMode.List) }
@@ -154,43 +162,57 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
     // Functions, not vals: NavDisplay keeps each entry's lambda, so a value computed here would
     // be frozen at the moment the entry was created. Calling these inside the entry content
     // reads the state there, and the screen recomposes when it changes.
-    fun allNotes(): List<Note> = storedNotes.orEmpty()
-    fun liveNotes() = allNotes().filter { it.deletedAt == null }
-    fun trashedNotes() = allNotes().filter { it.deletedAt != null }
-    fun folders(): List<FolderItem> {
-        val live = liveNotes()
-        val base = storedFolders.orEmpty()
-        val order = dragOrder
-        val ordered = if (order != null && order.toSet() == base.map { it.id }.toSet()) {
-            order.mapNotNull { id -> base.firstOrNull { it.id == id } }
-        } else base
-        return ordered.map { f ->
-            FolderItem(f.id, f.name, f.color, live.count { it.folderId == f.id })
+    val liveNotesList by remember {
+        derivedStateOf { storedNotes.orEmpty().filter { it.deletedAt == null } }
+    }
+    val trashedNotesList by remember {
+        derivedStateOf { storedNotes.orEmpty().filter { it.deletedAt != null } }
+    }
+    val folderItems by remember {
+        derivedStateOf {
+            val live = liveNotesList
+            val counts = live.groupingBy { it.folderId }.eachCount()
+            val base = storedFolders.orEmpty()
+            val order = dragOrder
+            val ordered = if (order != null && order.toSet() == base.map { it.id }.toSet()) {
+                order.mapNotNull { id -> base.firstOrNull { it.id == id } }
+            } else base
+            ordered.map { f -> FolderItem(f.id, f.name, f.color, counts[f.id] ?: 0) }
         }
     }
-
-    fun foldersUi() = FoldersUiState(
-        folders = folders(),
-        allNotesCount = liveNotes().size,
-        deletedCount = trashedNotes().size,
-    )
-
-    fun notesUi(): NotesUiState {
-        val all = folders()
-        return NotesUiState(
-            sections = groupForList(
-                notes = liveNotes().filter { selectedFolder == null || it.folderId == selectedFolder },
-                folders = all,
-                sort = settings().sort,
-                order = settings().sortOrder,
-            ),
-            folders = all,
-            selectedFolderId = selectedFolder,
-            viewMode = viewMode,
-            sort = settings().sort,
-            sortOrder = settings().sortOrder,
-        )
+    val foldersUiState by remember {
+        derivedStateOf {
+            FoldersUiState(
+                folders = folderItems,
+                allNotesCount = liveNotesList.size,
+                deletedCount = trashedNotesList.size,
+            )
+        }
     }
+    val notesUiState by remember {
+        derivedStateOf {
+            val s = settingsUi
+            NotesUiState(
+                sections = groupForList(
+                    notes = liveNotesList.filter { selectedFolder == null || it.folderId == selectedFolder },
+                    folders = folderItems,
+                    sort = s.sort,
+                    order = s.sortOrder,
+                ),
+                folders = folderItems,
+                selectedFolderId = selectedFolder,
+                viewMode = viewMode,
+                sort = s.sort,
+                sortOrder = s.sortOrder,
+            )
+        }
+    }
+    fun allNotes(): List<Note> = storedNotes.orEmpty()
+    fun liveNotes() = liveNotesList
+    fun trashedNotes() = trashedNotesList
+    fun folders(): List<FolderItem> = folderItems
+    fun foldersUi() = foldersUiState
+    fun notesUi() = notesUiState
 
     // ── Store operations ─────────────────────────────────────────────────────
     fun deleteFolder(id: Long, deleteNotes: Boolean) {
@@ -240,6 +262,9 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
         )
         backStack.add(AppDestination.NoteEditor(id, isNew = true))
     }
+
+    // Typing is saved after a short pause; make sure nothing is left waiting if the app goes away.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.flushDraft() }
 
     fun popBack() {
         if (backStack.size <= 1) return

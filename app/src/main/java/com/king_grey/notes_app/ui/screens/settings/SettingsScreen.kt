@@ -1,5 +1,7 @@
 package com.king_grey.notes_app.ui.screens.settings
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
@@ -48,9 +50,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetState
-import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -506,14 +506,7 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
     val clamped = size.coerceIn(TextSizeMin, TextSizeMax)
     var dragging by remember(clamped) { mutableFloatStateOf(clamped.toFloat()) }
     val preview = dragging.roundToInt()
-    val sliderState = rememberSliderState(
-        value = dragging,
-        steps = TextSizeMax - TextSizeMin - 1,
-        trackRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
-    )
-    LaunchedEffect(clamped) {
-        sliderState.value = clamped.toFloat()
-    }
+    val haptics = LocalHapticFeedback.current
 
     ListItem(
         shapes = shapes,
@@ -544,10 +537,17 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
                     color = colors.onSurfaceVariant,
                 )
 
+                // Value-based and snapped to whole sizes: the thumb always sits where the number
+                // says it does, and there are no tick dots (the mockup track has none).
                 Slider(
-                    state = sliderState,
-                    onValueChange = { dragging = it },
+                    value = dragging,
+                    onValueChange = {
+                        val snapped = it.roundToInt().toFloat()
+                        if (snapped != dragging) haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                        dragging = snapped
+                    },
                     onValueChangeFinished = { onSizeChange(dragging.roundToInt()) },
+                    valueRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)

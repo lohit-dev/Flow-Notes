@@ -24,6 +24,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import android.graphics.Bitmap
 import android.net.Uri
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -41,6 +45,7 @@ data class NoteDraft(
     val folderId: Long?,
 )
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class NotesViewModel @Inject constructor(
     private val notesRepository: NotesRepository,
@@ -65,7 +70,18 @@ class NotesViewModel @Inject constructor(
     val recentSearches: StateFlow<List<String>> = searchHistory.recent
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /**
+     * The editor reports every keystroke. Writing each one to Room would re-read and re-decode all
+     * notes and recompose the app per letter, so drafts wait for a short pause in typing and only
+     * the latest one is written. [flushDraft] writes it at once (leaving the editor, app stopped).
+     */
+    private val drafts = MutableSharedFlow<NoteDraft>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    @Volatile private var pendingDraft: NoteDraft? = null
+
     init {
+        viewModelScope.launch {
+            drafts.debounce(DRAFT_DEBOUNCE_MS).collect { persist(it) }
+        }
         viewModelScope.launch {
             notesRepository.purgeExpired(DELETED_RETENTION_DAYS)
             // Drop attachment copies that no note refers to any more.
@@ -77,26 +93,40 @@ class NotesViewModel @Inject constructor(
 
     /** Stores what the editor shows. A new note is only stored once it has something in it. */
     fun saveDraft(draft: NoteDraft) {
-        viewModelScope.launch {
-            saveLock.withLock {
-                val now = System.currentTimeMillis()
-                val existing = notesRepository.get(draft.id)
-                val changed = existing == null || existing.title != draft.title || existing.blocks != draft.blocks
-                val note = (existing ?: Note(id = draft.id, createdAt = now)).copy(
-                    title = draft.title,
-                    blocks = draft.blocks,
-                    pinned = draft.pinned,
-                    folderId = draft.folderId,
-                    editedAt = if (changed) now else existing!!.editedAt,
-                )
-                if (existing != null || !note.isBlank()) notesRepository.save(note)
-            }
+        pendingDraft = draft
+        drafts.tryEmit(draft)
+    }
+
+    /** Writes the latest draft now instead of waiting for typing to pause. */
+    fun flushDraft() {
+        viewModelScope.launch { flushPending() }
+    }
+
+    private suspend fun flushPending() {
+        pendingDraft?.let { persist(it) }
+    }
+
+    private suspend fun persist(draft: NoteDraft) {
+        saveLock.withLock {
+            val now = System.currentTimeMillis()
+            val existing = notesRepository.get(draft.id)
+            val changed = existing == null || existing.title != draft.title || existing.blocks != draft.blocks
+            val note = (existing ?: Note(id = draft.id, createdAt = now)).copy(
+                title = draft.title,
+                blocks = draft.blocks,
+                pinned = draft.pinned,
+                folderId = draft.folderId,
+                editedAt = if (changed) now else existing!!.editedAt,
+            )
+            if (existing != null || !note.isBlank()) notesRepository.save(note)
+            if (pendingDraft === draft) pendingDraft = null
         }
     }
 
     /** A note left empty is not worth keeping. */
     fun discardIfBlank(id: Long) {
         viewModelScope.launch {
+            flushPending()
             saveLock.withLock {
                 val note = notesRepository.get(id)
                 if (note != null && note.isBlank()) notesRepository.deleteForever(listOf(id))
@@ -156,3 +186,5 @@ class NotesViewModel @Inject constructor(
     fun setNewNoteStart(v: NewNoteStart) = viewModelScope.launch { settingsRepository.setNewNoteStart(v) }
     fun setShowPreviews(v: Boolean) = viewModelScope.launch { settingsRepository.setShowPreviews(v) }
 }
+
+private const val DRAFT_DEBOUNCE_MS = 400L

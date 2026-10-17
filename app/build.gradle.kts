@@ -78,4 +78,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.material.kolor)
+
+    // Splash screen
+    implementation(libs.lottie.compose)
+    implementation(libs.androidx.core.splashscreen)
 }
