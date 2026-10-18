@@ -3,7 +3,7 @@
 
     <style name="Theme.FlowNotes" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <!-- Shown by the system until the first frame; same indigo the Lottie splash sits on, no icon,
+    <!-- Shown by the system until the first frame; app background (light here, dark in values-night), no icon,
          so the hand-off to the animation is seamless. -->
     <style name="Theme.FlowNotes.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_bg</item>

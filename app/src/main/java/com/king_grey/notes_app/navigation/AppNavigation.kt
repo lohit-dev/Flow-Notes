@@ -108,7 +108,11 @@ private val topLevelDestinations = listOf(
  * local here is only UI state: the back stack, the open editor, the search box, the open sheet.
  */
 @Composable
-fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
+fun AppNavigation(
+    viewModel: NotesViewModel = hiltViewModel(),
+    // Drawn on top of everything inside the app theme, so it can pick up the accent and dark mode.
+    overlay: @Composable () -> Unit = {},
+) {
     val backStack = remember { mutableStateListOf<AppDestination>(AppDestination.Notes) }
     val currentDestination = backStack.lastOrNull() ?: AppDestination.Notes
     val showBottomBar = topLevelDestinations.any { it.route == currentDestination }
@@ -368,6 +372,7 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
             palette = palette,
         ) {
             val colors = MaterialTheme.colorScheme
+            Box(Modifier.fillMaxSize()) {
             Scaffold(
                 containerColor = colors.background,
                 bottomBar = {
@@ -714,6 +719,8 @@ fun AppNavigation(viewModel: NotesViewModel = hiltViewModel()) {
                         bottom = innerPadding.calculateBottomPadding(),
                     ),
                 )
+            }
+            overlay()
             }
         }
     }
