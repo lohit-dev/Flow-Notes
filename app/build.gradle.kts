@@ -15,8 +15,8 @@ android {
         applicationId = "com.king_grey.notes_app"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 11
+        versionName = "11.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -39,11 +39,7 @@ android {
     buildFeatures {
         compose = true
     }
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
+
 }
 
 dependencies {
