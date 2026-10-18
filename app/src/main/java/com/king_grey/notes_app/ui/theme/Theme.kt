@@ -399,12 +399,89 @@ private val orchidDarkScheme = darkColorScheme(
     surfaceContainerHighest = surfaceContainerHighestOrchidDark,
 )
 
+private val monochromeLightScheme = lightColorScheme(
+    primary = primaryMonochromeLight,
+    onPrimary = onPrimaryMonochromeLight,
+    primaryContainer = primaryContainerMonochromeLight,
+    onPrimaryContainer = onPrimaryContainerMonochromeLight,
+    secondary = secondaryMonochromeLight,
+    onSecondary = onSecondaryMonochromeLight,
+    secondaryContainer = secondaryContainerMonochromeLight,
+    onSecondaryContainer = onSecondaryContainerMonochromeLight,
+    tertiary = tertiaryMonochromeLight,
+    onTertiary = onTertiaryMonochromeLight,
+    tertiaryContainer = tertiaryContainerMonochromeLight,
+    onTertiaryContainer = onTertiaryContainerMonochromeLight,
+    error = errorMonochromeLight,
+    onError = onErrorMonochromeLight,
+    errorContainer = errorContainerMonochromeLight,
+    onErrorContainer = onErrorContainerMonochromeLight,
+    background = backgroundMonochromeLight,
+    onBackground = onBackgroundMonochromeLight,
+    surface = surfaceMonochromeLight,
+    onSurface = onSurfaceMonochromeLight,
+    surfaceVariant = surfaceVariantMonochromeLight,
+    onSurfaceVariant = onSurfaceVariantMonochromeLight,
+    outline = outlineMonochromeLight,
+    outlineVariant = outlineVariantMonochromeLight,
+    scrim = scrimMonochromeLight,
+    inverseSurface = inverseSurfaceMonochromeLight,
+    inverseOnSurface = inverseOnSurfaceMonochromeLight,
+    inversePrimary = inversePrimaryMonochromeLight,
+    surfaceDim = surfaceDimMonochromeLight,
+    surfaceBright = surfaceBrightMonochromeLight,
+    surfaceContainerLowest = surfaceContainerLowestMonochromeLight,
+    surfaceContainerLow = surfaceContainerLowMonochromeLight,
+    surfaceContainer = surfaceContainerMonochromeLight,
+    surfaceContainerHigh = surfaceContainerHighMonochromeLight,
+    surfaceContainerHighest = surfaceContainerHighestMonochromeLight,
+)
+
+private val monochromeDarkScheme = darkColorScheme(
+    primary = primaryMonochromeDark,
+    onPrimary = onPrimaryMonochromeDark,
+    primaryContainer = primaryContainerMonochromeDark,
+    onPrimaryContainer = onPrimaryContainerMonochromeDark,
+    secondary = secondaryMonochromeDark,
+    onSecondary = onSecondaryMonochromeDark,
+    secondaryContainer = secondaryContainerMonochromeDark,
+    onSecondaryContainer = onSecondaryContainerMonochromeDark,
+    tertiary = tertiaryMonochromeDark,
+    onTertiary = onTertiaryMonochromeDark,
+    tertiaryContainer = tertiaryContainerMonochromeDark,
+    onTertiaryContainer = onTertiaryContainerMonochromeDark,
+    error = errorMonochromeDark,
+    onError = onErrorMonochromeDark,
+    errorContainer = errorContainerMonochromeDark,
+    onErrorContainer = onErrorContainerMonochromeDark,
+    background = backgroundMonochromeDark,
+    onBackground = onBackgroundMonochromeDark,
+    surface = surfaceMonochromeDark,
+    onSurface = onSurfaceMonochromeDark,
+    surfaceVariant = surfaceVariantMonochromeDark,
+    onSurfaceVariant = onSurfaceVariantMonochromeDark,
+    outline = outlineMonochromeDark,
+    outlineVariant = outlineVariantMonochromeDark,
+    scrim = scrimMonochromeDark,
+    inverseSurface = inverseSurfaceMonochromeDark,
+    inverseOnSurface = inverseOnSurfaceMonochromeDark,
+    inversePrimary = inversePrimaryMonochromeDark,
+    surfaceDim = surfaceDimMonochromeDark,
+    surfaceBright = surfaceBrightMonochromeDark,
+    surfaceContainerLowest = surfaceContainerLowestMonochromeDark,
+    surfaceContainerLow = surfaceContainerLowMonochromeDark,
+    surfaceContainer = surfaceContainerMonochromeDark,
+    surfaceContainerHigh = surfaceContainerHighMonochromeDark,
+    surfaceContainerHighest = surfaceContainerHighestMonochromeDark,
+)
+
 enum class FlowNotesPalette {
     Sapphire,
     Meadow,
     Sunset,
     Orchid,
     Violet,
+    Monochrome,
 }
 
 private fun FlowNotesPalette.colorScheme(isDark: Boolean) = when (this) {
@@ -413,6 +490,7 @@ private fun FlowNotesPalette.colorScheme(isDark: Boolean) = when (this) {
     FlowNotesPalette.Meadow -> if (isDark) meadowDarkScheme else meadowLightScheme
     FlowNotesPalette.Sunset -> if (isDark) sunsetDarkScheme else sunsetLightScheme
     FlowNotesPalette.Orchid -> if (isDark) orchidDarkScheme else orchidLightScheme
+    FlowNotesPalette.Monochrome -> if (isDark) monochromeDarkScheme else monochromeLightScheme
 }
 
 @Composable

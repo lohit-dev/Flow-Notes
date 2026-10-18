@@ -97,6 +97,7 @@ enum class AccentColor(val label: String, val color: Color) {
     Meadow("Meadow", Color(0xFF2F9E4F)),
     Sunset("Sunset", Color(0xFFD4641E)),
     Orchid("Orchid", Color(0xFFA0449A)),
+    Monochrome("Monochrome", Color(0xFF616161)),
 }
 
 enum class NoteSort(val label: String) {

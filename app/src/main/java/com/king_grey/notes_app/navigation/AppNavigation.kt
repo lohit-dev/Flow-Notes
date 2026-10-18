@@ -359,6 +359,7 @@ fun AppNavigation(
         AccentColor.Meadow -> FlowNotesPalette.Meadow
         AccentColor.Sunset -> FlowNotesPalette.Sunset
         AccentColor.Orchid -> FlowNotesPalette.Orchid
+        AccentColor.Monochrome -> FlowNotesPalette.Monochrome
     }
     val baseDensity = LocalDensity.current
     val textScale = settings().textSize / 17f
