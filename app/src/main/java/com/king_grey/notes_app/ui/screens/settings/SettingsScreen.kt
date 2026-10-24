@@ -1,15 +1,12 @@
 package com.king_grey.notes_app.ui.screens.settings
 
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,10 +46,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,9 +62,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -505,9 +506,18 @@ private fun AccentSwatch(accent: AccentColor, selected: Boolean, onClick: () -> 
 private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItemShapes) {
     val colors = MaterialTheme.colorScheme
     val clamped = size.coerceIn(TextSizeMin, TextSizeMax)
-    var dragging by remember(clamped) { mutableFloatStateOf(clamped.toFloat()) }
-    val preview = dragging.roundToInt()
     val haptics = LocalHapticFeedback.current
+    val sliderState = rememberSliderState(
+        value = clamped.toFloat(),
+        steps = TextSizeMax - TextSizeMin - 1,
+        trackRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
+    )
+
+    // Keep the stateful Material 3 slider synchronized when the setting changes elsewhere.
+    LaunchedEffect(clamped) {
+        if (!sliderState.isDragging) sliderState.value = clamped.toFloat()
+    }
+    val preview = sliderState.value.roundToInt()
 
     ListItem(
         shapes = shapes,
@@ -538,17 +548,15 @@ private fun TextSizeRow(size: Int, onSizeChange: (Int) -> Unit, shapes: ListItem
                     color = colors.onSurfaceVariant,
                 )
 
-                // Value-based and snapped to whole sizes: the thumb always sits where the number
-                // says it does, and there are no tick dots (the mockup track has none).
                 Slider(
-                    value = dragging,
+                    state = sliderState,
                     onValueChange = {
-                        val snapped = it.roundToInt().toFloat()
-                        if (snapped != dragging) haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                        dragging = snapped
+                        if (it.roundToInt() != sliderState.value.roundToInt()) {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                        }
+                        sliderState.value = it
                     },
-                    onValueChangeFinished = { onSizeChange(dragging.roundToInt()) },
-                    valueRange = TextSizeMin.toFloat()..TextSizeMax.toFloat(),
+                    onValueChangeFinished = { onSizeChange(sliderState.value.roundToInt()) },
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)
@@ -761,7 +769,14 @@ internal fun RateSheet(
 ) {
     val colors = MaterialTheme.colorScheme
     var rating by remember { mutableIntStateOf(0) }
-    val words = listOf("Tap a star to rate it", "Not great", "Could be better", "It’s okay", "Pretty good", "Loved it!")
+    val words = listOf(
+        "Tap a star to rate it",
+        "Not great",
+        "Could be better",
+        "It’s okay",
+        "Pretty good",
+        "Loved it!"
+    )
 
     ChoiceSheet(
         title = "Rate Flow Notes",
@@ -853,7 +868,11 @@ internal fun RateSheet(
             ) { word ->
                 Text(
                     text = word,
-                    style = screenType(14f, if (rating > 0) FontWeight.Bold else FontWeight.Normal, lineHeight = 20f),
+                    style = screenType(
+                        14f,
+                        if (rating > 0) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 20f
+                    ),
                     color = if (rating > 0) colors.primary else colors.onSurfaceVariant,
                 )
             }

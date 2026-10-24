@@ -7,16 +7,14 @@ plugins {
 
 android {
     namespace = "com.king_grey.notes_app"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.king_grey.notes_app"
         minSdk = 28
         targetSdk = 37
-        versionCode = 11
-        versionName = "11.0"
+        versionCode = 12
+        versionName = "12.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,11 +23,6 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-
-            optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
-            }
         }
     }
     compileOptions {
